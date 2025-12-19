@@ -1,14 +1,19 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Animated, PanResponder } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 
 export default function ReaderScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
   const [showSettings, setShowSettings] = useState(false);
+  const [showControls, setShowControls] = useState(false);
+  const [currentPage, setCurrentPage] = useState(123);
+  const totalPages = 1000;
+  const hideTimer = useRef<NodeJS.Timeout | null>(null);
+  const translateX = useRef(new Animated.Value(0)).current;
 
-  // Mock book content
+  // Mock book content per page
   const bookContent = `Chapter 1: The Beginning
 
 Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
@@ -21,56 +26,159 @@ Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed 
 
 Neque porro quisquam est, qui dolorem ipsum quia dolor sit amet, consectetur, adipisci velit, sed quia non numquam eius modi tempora incidunt ut labore et dolore magnam aliquam quaerat voluptatem.`;
 
+  const handleTapPage = () => {
+    // Toggle controls visibility
+    setShowControls(!showControls);
+
+    // Clear existing timer
+    if (hideTimer.current) {
+      clearTimeout(hideTimer.current);
+    }
+
+    // Set new timer to hide after 3 seconds
+    if (!showControls) {
+      hideTimer.current = setTimeout(() => {
+        setShowControls(false);
+      }, 3000);
+    }
+  };
+
+  const handleOpenSettings = () => {
+    setShowSettings(true);
+    // Clear hide timer when opening settings
+    if (hideTimer.current) {
+      clearTimeout(hideTimer.current);
+    }
+  };
+
+  const goToNextPage = () => {
+    if (currentPage < totalPages) {
+      setCurrentPage(currentPage + 1);
+      
+      // Animate page turn
+      Animated.sequence([
+        Animated.timing(translateX, {
+          toValue: -50,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+        Animated.timing(translateX, {
+          toValue: 0,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  };
+
+  const goToPreviousPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage(currentPage - 1);
+      
+      // Animate page turn
+      Animated.sequence([
+        Animated.timing(translateX, {
+          toValue: 50,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+        Animated.timing(translateX, {
+          toValue: 0,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  };
+
+  // Pan responder for swipe gestures
+  const panResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (evt, gestureState) => {
+        // Only respond to horizontal swipes
+        return Math.abs(gestureState.dx) > 20;
+      },
+      onPanResponderRelease: (evt, gestureState) => {
+        if (gestureState.dx > 50) {
+          // Swipe right - Previous page
+          goToPreviousPage();
+        } else if (gestureState.dx < -50) {
+          // Swipe left - Next page
+          goToNextPage();
+        }
+      },
+    })
+  ).current;
+
+  const progress = (currentPage / totalPages) * 100;
+
   return (
     <View style={styles.container}>
-      {/* Top Bar */}
-      <View style={styles.topBar}>
-        <TouchableOpacity onPress={() => router.push('/(tabs)/home')}>
-          <Text style={styles.logo}>TomeTrack</Text>
+      {/* Top Bar - Only show when controls are visible */}
+      {showControls && (
+        <View style={styles.topBar}>
+          <TouchableOpacity onPress={() => router.push('/(tabs)/home')}>
+            <Text style={styles.logo}>TomeTrack</Text>
+          </TouchableOpacity>
+          <View style={styles.topIcons}>
+            <TouchableOpacity onPress={() => router.push('/(tabs)/profile')}>
+              <Ionicons name="person-circle-outline" size={28} color="#F7F4EF" />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => router.push('/(tabs)/library')}>
+              <Ionicons name="library-outline" size={28} color="#F7F4EF" />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => router.push('/(tabs)/explore')}>
+              <Ionicons name="search-outline" size={28} color="#F7F4EF" />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => router.push('/(tabs)/settings')}>
+              <Ionicons name="settings-outline" size={28} color="#F7F4EF" />
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {/* Book Header - Only show when controls are visible */}
+      {showControls && (
+        <View style={styles.header}>
+          <Text style={styles.bookTitle}>Title of Book</Text>
+          <Text style={styles.chapterTitle}>Chapter 1</Text>
+        </View>
+      )}
+
+      {/* Content - Swipe to turn pages, tap to toggle controls */}
+      <View style={styles.contentContainer} {...panResponder.panHandlers}>
+        <TouchableOpacity 
+          style={styles.tapArea}
+          activeOpacity={1}
+          onPress={handleTapPage}
+        >
+          <Animated.View style={[styles.content, { transform: [{ translateX }] }]}>
+            <Text style={styles.text}>{bookContent}</Text>
+            <Text style={styles.pageIndicator}>Page {currentPage}</Text>
+          </Animated.View>
         </TouchableOpacity>
-        <View style={styles.topIcons}>
-          <TouchableOpacity onPress={() => router.push('/(tabs)/profile')}>
-            <Ionicons name="person-circle-outline" size={28} color="#F7F4EF" />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => router.push('/(tabs)/library')}>
-            <Ionicons name="library-outline" size={28} color="#F7F4EF" />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => router.push('/(tabs)/explore')}>
-            <Ionicons name="search-outline" size={28} color="#F7F4EF" />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => router.push('/(tabs)/settings')}>
-            <Ionicons name="settings-outline" size={28} color="#F7F4EF" />
-          </TouchableOpacity>
+      </View>
+
+      {/* Bottom Bar - Only show when controls are visible */}
+      {showControls && (
+        <View style={styles.bottomBar}>
+          <Text style={styles.pageNumber}>{currentPage}</Text>
+          <View style={styles.progressBarContainer}>
+            <View style={[styles.progressBar, { width: `${progress}%` }]} />
+          </View>
+          <Text style={styles.pageTotal}>{totalPages}</Text>
         </View>
-      </View>
+      )}
 
-      {/* Book Header */}
-      <View style={styles.header}>
-        <Text style={styles.bookTitle}>Title of Book</Text>
-        <Text style={styles.chapterTitle}>Chapter 1</Text>
-      </View>
-
-      {/* Content */}
-      <ScrollView style={styles.content}>
-        <Text style={styles.text}>{bookContent}</Text>
-      </ScrollView>
-
-      {/* Bottom Bar */}
-      <View style={styles.bottomBar}>
-        <Text style={styles.pageNumber}>123</Text>
-        <View style={styles.progressBarContainer}>
-          <View style={styles.progressBar} />
-        </View>
-        <Text style={styles.pageTotal}>1000</Text>
-      </View>
-
-      {/* Floating Settings Button */}
-      <TouchableOpacity 
-        style={styles.settingsButton}
-        onPress={() => setShowSettings(true)}
-      >
-        <Ionicons name="settings" size={24} color="#F7F4EF" />
-      </TouchableOpacity>
+      {/* Floating Settings Button - Only show when controls are visible */}
+      {showControls && (
+        <TouchableOpacity 
+          style={styles.settingsButton}
+          onPress={handleOpenSettings}
+        >
+          <Ionicons name="settings" size={24} color="#F7F4EF" />
+        </TouchableOpacity>
+      )}
 
       {/* Settings Modal */}
       {showSettings && (
@@ -197,15 +305,31 @@ const styles = StyleSheet.create({
     color: '#F7F4EF',
     opacity: 0.6,
   },
+  contentContainer: {
+    flex: 1,
+  },
+  tapArea: {
+    flex: 1,
+  },
   content: {
     flex: 1,
     padding: 20,
+    paddingTop:60,
+    paddingBottom:40,
+    justifyContent: 'center',
   },
   text: {
     fontSize: 18,
     lineHeight: 32,
     color: '#F7F4EF',
     fontFamily: 'serif',
+  },
+  pageIndicator: {
+    color: '#F7F4EF',
+    opacity: 0.3,
+    fontSize: 12,
+    textAlign: 'center',
+    marginTop: 20,
   },
   bottomBar: {
     flexDirection: 'row',
@@ -226,7 +350,6 @@ const styles = StyleSheet.create({
     borderRadius: 2,
   },
   progressBar: {
-    width: '12.3%',
     height: '100%',
     backgroundColor: '#7BA591',
     borderRadius: 2,

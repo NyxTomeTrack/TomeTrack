@@ -36,16 +36,11 @@ export default function BookDetailPage() {
   };
 
   const handleStatusSelect = (status: string) => {
-    setShowStatusMenu(false);
-    
-    // Navigate to library screen
-    router.push('/(tabs)/library');
-    
-    // Show confirmation
-    setTimeout(() => {
-      alert(`Added to library as: ${status}`);
-    }, 500);
-  };
+  setShowStatusMenu(false);
+  
+  // Navigate to library screen (silent - no alert)
+  router.push('/(tabs)/library');
+};
 
   const handleStartReading = () => {
     if (hasFile) {
@@ -56,11 +51,11 @@ export default function BookDetailPage() {
   };
 
   const handleFileUpload = () => {
-    alert('File picker would open here. For now, we will simulate file upload.');
-    setHasFile(true);
-    setShowFileUpload(false);
-    router.push(`/reader/${id}`);
-  };
+  // Simulate file upload
+  setHasFile(true);
+  setShowFileUpload(false);
+  router.push(`/reader/${id}`);
+};
 
   // ONE return statement with ALL JSX
   return (

@@ -12,19 +12,36 @@ export default function ReadingGoalsScreen() {
   const progress = (currentProgress / parseInt(yearlyGoal)) * 100;
 
   const handleSave = () => {
-    // TODO: Save to API
-    alert('Reading goals saved!');
-    router.back();
-  };
+  // TODO: Save to API
+  router.back();
+};
 
   return (
     <View style={styles.container}>
       {/* Top Bar */}
       <View style={styles.topBar}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color="#F7F4EF" />
+        <TouchableOpacity onPress={() => router.push('/(tabs)/home')}>
+          <Text style={styles.logo}>TomeTrack</Text>
         </TouchableOpacity>
-        <Text style={styles.title}>Reading Goals</Text>
+        <View style={styles.topIcons}>
+          <TouchableOpacity onPress={() => router.push('/(tabs)/profile')}>
+            <Ionicons name="person-circle-outline" size={28} color="#F7F4EF" />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => router.push('/(tabs)/library')}>
+            <Ionicons name="library-outline" size={28} color="#F7F4EF" />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => router.push('/(tabs)/explore')}>
+            <Ionicons name="search-outline" size={28} color="#F7F4EF" />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => router.push('/(tabs)/settings')}>
+            <Ionicons name="settings-outline" size={28} color="#F7F4EF" />
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Page Title with Save Button */}
+      <View style={styles.titleBar}>
+        <Text style={styles.pageTitle}>Reading Goals</Text>
         <TouchableOpacity onPress={handleSave}>
           <Text style={styles.saveText}>Save</Text>
         </TouchableOpacity>
@@ -136,8 +153,26 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingTop: 60,
   },
-  title: {
+  logo: {
     fontSize: 20,
+    fontWeight: 'bold',
+    color: '#F7F4EF',
+  },
+  topIcons: {
+    flexDirection: 'row',
+    gap: 16,
+  },
+  titleBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#4A5568',
+  },
+  pageTitle: {
+    fontSize: 24,
     fontWeight: 'bold',
     color: '#F7F4EF',
   },

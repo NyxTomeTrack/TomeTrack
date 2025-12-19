@@ -8,12 +8,15 @@ export default function LoginScreen() {
   const router = useRouter();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
 
   const handleLogin = async () => {
     if (!username.trim() || !password.trim()) {
-      alert('Please fill in all fields');
+      setError('Please fill in all fields');
       return;
     }
+
+    setError('');
 
     try {
       const response = await axios.post('http://192.168.101.22:3000/api/auth/login', {
@@ -25,7 +28,7 @@ export default function LoginScreen() {
       router.replace('/(tabs)/home');
       
     } catch (error: any) {
-      alert('Login failed: ' + (error.response?.data?.error || 'Please try again'));
+      setError(error.response?.data?.error || 'Login failed. Please try again.');
     }
   };
 
@@ -55,7 +58,10 @@ export default function LoginScreen() {
             placeholder="Username/Email"
             placeholderTextColor="#999"
             value={username}
-            onChangeText={setUsername}
+            onChangeText={(text) => {
+              setUsername(text);
+              setError('');
+            }}
             autoCapitalize="none"
           />
 
@@ -64,10 +70,21 @@ export default function LoginScreen() {
             placeholder="Password"
             placeholderTextColor="#999"
             value={password}
-            onChangeText={setPassword}
+            onChangeText={(text) => {
+              setPassword(text);
+              setError('');
+            }}
             secureTextEntry
             autoCapitalize="none"
           />
+
+          {/* Error Message */}
+          {error ? (
+            <View style={styles.errorContainer}>
+              <Ionicons name="alert-circle" size={16} color="#E57373" />
+              <Text style={styles.errorText}>{error}</Text>
+            </View>
+          ) : null}
 
           <TouchableOpacity style={styles.button} onPress={handleLogin}>
             <Text style={styles.buttonText}>Log In</Text>
@@ -138,6 +155,21 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 8,
     fontSize: 16,
+  },
+  errorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#4A2424',
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E57373',
+  },
+  errorText: {
+    color: '#E57373',
+    fontSize: 14,
+    flex: 1,
   },
   button: {
     backgroundColor: '#7BA591',

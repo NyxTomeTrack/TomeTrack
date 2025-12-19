@@ -1,136 +1,172 @@
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 
-export default function ReadingSettingsScreen() {
+export default function FileManagementScreen() {
   const router = useRouter();
-  const [fontSize, setFontSize] = useState(18);
-  const [lineSpacing, setLineSpacing] = useState('medium');
-  const [theme, setTheme] = useState('dark');
-  const [fontFamily, setFontFamily] = useState('serif');
+  const [connectedServices, setConnectedServices] = useState({
+    googleDrive: false,
+    dropbox: false,
+    oneDrive: false,
+  });
+
+  const handleConnectService = (service: string) => {
+    // TODO: Implement OAuth connection
+    if (service === 'Google Drive') {
+      setConnectedServices({ ...connectedServices, googleDrive: !connectedServices.googleDrive });
+    } else if (service === 'Dropbox') {
+      setConnectedServices({ ...connectedServices, dropbox: !connectedServices.dropbox });
+    } else if (service === 'OneDrive') {
+      setConnectedServices({ ...connectedServices, oneDrive: !connectedServices.oneDrive });
+    }
+  };
+
+  const handleBrowseDevice = () => {
+    // TODO: Open native file picker for bulk selection
+    // For now, just navigate back (would open file picker in production)
+  };
+
+  const handleManageFiles = () => {
+    // TODO: Navigate to file library screen
+    // For now, just do nothing (would open file management screen in production)
+  };
 
   return (
     <View style={styles.container}>
+      {/* Top Bar */}
       <View style={styles.topBar}>
         <TouchableOpacity onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={24} color="#F7F4EF" />
         </TouchableOpacity>
-        <Text style={styles.title}>Default Reading Settings</Text>
+        <Text style={styles.title}>File Management</Text>
         <View style={{ width: 24 }} />
       </View>
 
       <ScrollView style={styles.content}>
+        {/* Description */}
         <Text style={styles.description}>
-          Set your default preferences for reading. You can adjust these while reading.
+          Upload your personal ebook files and connect them to books in TomeTrack. Your files stay on your device or cloud storage - we never host your books.
         </Text>
 
-        {/* Font Size */}
+        {/* Device Storage */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Font Size</Text>
-          <View style={styles.fontSizeControl}>
-            <TouchableOpacity 
-              style={styles.fontButton}
-              onPress={() => setFontSize(Math.max(12, fontSize - 2))}
-            >
-              <Text style={styles.fontButtonText}>A-</Text>
-            </TouchableOpacity>
-            <View style={styles.fontSizeDisplay}>
-              <Text style={styles.fontSizeText}>{fontSize}px</Text>
+          <Text style={styles.sectionTitle}>Device Storage</Text>
+          
+          <TouchableOpacity style={styles.uploadCard} onPress={handleBrowseDevice}>
+            <View style={styles.uploadCardLeft}>
+              <View style={styles.iconCircle}>
+                <Ionicons name="phone-portrait-outline" size={32} color="#7BA591" />
+              </View>
+              <View style={styles.uploadInfo}>
+                <Text style={styles.uploadTitle}>Browse Device</Text>
+                <Text style={styles.uploadSubtext}>Select multiple files from your phone</Text>
+              </View>
             </View>
-            <TouchableOpacity 
-              style={styles.fontButton}
-              onPress={() => setFontSize(Math.min(32, fontSize + 2))}
-            >
-              <Text style={styles.fontButtonText}>A+</Text>
-            </TouchableOpacity>
+            <Ionicons name="chevron-forward" size={24} color="#F7F4EF" opacity={0.5} />
+          </TouchableOpacity>
+
+          <View style={styles.supportedFormats}>
+            <Text style={styles.supportedTitle}>Supported formats:</Text>
+            <Text style={styles.supportedText}>EPUB, PDF, MOBI, AZW, TXT</Text>
           </View>
-          <Text style={[styles.previewText, { fontSize }]}>
-            Preview: The quick brown fox jumps over the lazy dog.
+        </View>
+
+        {/* Cloud Storage */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Cloud Storage</Text>
+          <Text style={styles.sectionDescription}>
+            Connect your cloud storage to access your ebook library anywhere
           </Text>
+
+          {/* Google Drive */}
+          <TouchableOpacity 
+            style={[styles.cloudCard, connectedServices.googleDrive && styles.cloudCardConnected]}
+            onPress={() => handleConnectService('Google Drive')}
+          >
+            <View style={styles.cloudCardLeft}>
+              <Ionicons name="logo-google" size={32} color="#F7F4EF" />
+              <View style={styles.cloudInfo}>
+                <Text style={styles.cloudTitle}>Google Drive</Text>
+                <Text style={styles.cloudStatus}>
+                  {connectedServices.googleDrive ? 'Connected' : 'Not connected'}
+                </Text>
+              </View>
+            </View>
+            {connectedServices.googleDrive ? (
+              <Text style={styles.disconnectText}>Disconnect</Text>
+            ) : (
+              <Text style={styles.connectText}>Connect</Text>
+            )}
+          </TouchableOpacity>
+
+          {/* Dropbox */}
+          <TouchableOpacity 
+            style={[styles.cloudCard, connectedServices.dropbox && styles.cloudCardConnected]}
+            onPress={() => handleConnectService('Dropbox')}
+          >
+            <View style={styles.cloudCardLeft}>
+              <Ionicons name="cloud-outline" size={32} color="#F7F4EF" />
+              <View style={styles.cloudInfo}>
+                <Text style={styles.cloudTitle}>Dropbox</Text>
+                <Text style={styles.cloudStatus}>
+                  {connectedServices.dropbox ? 'Connected' : 'Not connected'}
+                </Text>
+              </View>
+            </View>
+            {connectedServices.dropbox ? (
+              <Text style={styles.disconnectText}>Disconnect</Text>
+            ) : (
+              <Text style={styles.connectText}>Connect</Text>
+            )}
+          </TouchableOpacity>
+
+          {/* OneDrive */}
+          <TouchableOpacity 
+            style={[styles.cloudCard, connectedServices.oneDrive && styles.cloudCardConnected]}
+            onPress={() => handleConnectService('OneDrive')}
+          >
+            <View style={styles.cloudCardLeft}>
+              <Ionicons name="cloud-outline" size={32} color="#F7F4EF" />
+              <View style={styles.cloudInfo}>
+                <Text style={styles.cloudTitle}>OneDrive</Text>
+                <Text style={styles.cloudStatus}>
+                  {connectedServices.oneDrive ? 'Connected' : 'Not connected'}
+                </Text>
+              </View>
+            </View>
+            {connectedServices.oneDrive ? (
+              <Text style={styles.disconnectText}>Disconnect</Text>
+            ) : (
+              <Text style={styles.connectText}>Connect</Text>
+            )}
+          </TouchableOpacity>
         </View>
 
-        {/* Line Spacing */}
+        {/* Manage Files */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Line Spacing</Text>
-          <View style={styles.optionsRow}>
-            <TouchableOpacity 
-              style={[styles.option, lineSpacing === 'tight' && styles.optionActive]}
-              onPress={() => setLineSpacing('tight')}
-            >
-              <Ionicons name="reorder-two-outline" size={24} color="#F7F4EF" />
-              <Text style={styles.optionText}>Tight</Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={[styles.option, lineSpacing === 'medium' && styles.optionActive]}
-              onPress={() => setLineSpacing('medium')}
-            >
-              <Ionicons name="reorder-three-outline" size={24} color="#F7F4EF" />
-              <Text style={styles.optionText}>Medium</Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={[styles.option, lineSpacing === 'relaxed' && styles.optionActive]}
-              onPress={() => setLineSpacing('relaxed')}
-            >
-              <Ionicons name="reorder-four-outline" size={24} color="#F7F4EF" />
-              <Text style={styles.optionText}>Relaxed</Text>
-            </TouchableOpacity>
+          <Text style={styles.sectionTitle}>Your Files</Text>
+          
+          <TouchableOpacity style={styles.manageCard} onPress={handleManageFiles}>
+            <View style={styles.manageCardLeft}>
+              <View style={styles.iconCircle}>
+                <Ionicons name="folder-open-outline" size={32} color="#7BA591" />
+              </View>
+              <View style={styles.manageInfo}>
+                <Text style={styles.manageTitle}>Manage Uploaded Files</Text>
+                <Text style={styles.manageSubtext}>View and organize your ebook library</Text>
+              </View>
+            </View>
+            <Ionicons name="chevron-forward" size={24} color="#F7F4EF" opacity={0.5} />
+          </TouchableOpacity>
+
+          <View style={styles.storageInfo}>
+            <Ionicons name="information-circle-outline" size={20} color="#7BA591" />
+            <Text style={styles.storageText}>
+              Files are linked to books in your library but remain stored on your device or cloud storage
+            </Text>
           </View>
         </View>
-
-        {/* Theme */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Default Theme</Text>
-          <View style={styles.optionsRow}>
-            <TouchableOpacity 
-              style={[styles.themeOption, styles.themeDark, theme === 'dark' && styles.themeActive]}
-              onPress={() => setTheme('dark')}
-            >
-              <Text style={styles.themeText}>Dark</Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={[styles.themeOption, styles.themeSepia, theme === 'sepia' && styles.themeActive]}
-              onPress={() => setTheme('sepia')}
-            >
-              <Text style={[styles.themeText, styles.themeTextDark]}>Sepia</Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={[styles.themeOption, styles.themeLight, theme === 'light' && styles.themeActive]}
-              onPress={() => setTheme('light')}
-            >
-              <Text style={[styles.themeText, styles.themeTextDark]}>Light</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Font Family */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Font Style</Text>
-          <View style={styles.optionsRow}>
-            <TouchableOpacity 
-              style={[styles.option, fontFamily === 'serif' && styles.optionActive]}
-              onPress={() => setFontFamily('serif')}
-            >
-              <Text style={styles.optionText}>Serif</Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={[styles.option, fontFamily === 'sans-serif' && styles.optionActive]}
-              onPress={() => setFontFamily('sans-serif')}
-            >
-              <Text style={[styles.optionText, { fontFamily: 'sans-serif' }]}>Sans-Serif</Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={[styles.option, fontFamily === 'monospace' && styles.optionActive]}
-              onPress={() => setFontFamily('monospace')}
-            >
-              <Text style={[styles.optionText, { fontFamily: 'monospace' }]}>Mono</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        <TouchableOpacity style={styles.saveButton}>
-          <Text style={styles.saveButtonText}>Save Settings</Text>
-        </TouchableOpacity>
       </ScrollView>
     </View>
   );
@@ -159,10 +195,10 @@ const styles = StyleSheet.create({
   },
   description: {
     color: '#F7F4EF',
-    opacity: 0.8,
     fontSize: 14,
-    marginBottom: 24,
+    opacity: 0.8,
     lineHeight: 20,
+    marginBottom: 24,
   },
   section: {
     marginBottom: 32,
@@ -171,102 +207,151 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     color: '#F7F4EF',
+    marginBottom: 8,
+  },
+  sectionDescription: {
+    color: '#F7F4EF',
+    fontSize: 14,
+    opacity: 0.7,
     marginBottom: 16,
   },
-  fontSizeControl: {
+  uploadCard: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#4A5568',
+    padding: 16,
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  uploadCardLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 16,
-    marginBottom: 16,
+    flex: 1,
   },
-  fontButton: {
-    width: 48,
-    height: 48,
-    backgroundColor: '#4A5568',
-    borderRadius: 8,
+  iconCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#2C3E50',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  fontButtonText: {
-    color: '#F7F4EF',
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  fontSizeDisplay: {
+  uploadInfo: {
     flex: 1,
+  },
+  uploadTitle: {
+    color: '#F7F4EF',
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  uploadSubtext: {
+    color: '#F7F4EF',
+    fontSize: 13,
+    opacity: 0.7,
+  },
+  supportedFormats: {
     backgroundColor: '#4A5568',
     padding: 12,
     borderRadius: 8,
-    alignItems: 'center',
   },
-  fontSizeText: {
+  supportedTitle: {
     color: '#F7F4EF',
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: '600',
+    marginBottom: 4,
   },
-  previewText: {
-    color: '#F7F4EF',
-    opacity: 0.8,
-    lineHeight: 28,
+  supportedText: {
+    color: '#7BA591',
+    fontSize: 13,
   },
-  optionsRow: {
+  cloudCard: {
     flexDirection: 'row',
-    gap: 12,
-  },
-  option: {
-    flex: 1,
+    justifyContent: 'space-between',
+    alignItems: 'center',
     backgroundColor: '#4A5568',
     padding: 16,
     borderRadius: 8,
-    alignItems: 'center',
-    gap: 8,
-  },
-  optionActive: {
-    backgroundColor: '#7BA591',
-  },
-  optionText: {
-    color: '#F7F4EF',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  themeOption: {
-    flex: 1,
-    padding: 16,
-    borderRadius: 8,
-    alignItems: 'center',
+    marginBottom: 12,
     borderWidth: 2,
     borderColor: 'transparent',
   },
-  themeDark: {
-    backgroundColor: '#2C3E50',
-  },
-  themeSepia: {
-    backgroundColor: '#F4ECD8',
-  },
-  themeLight: {
-    backgroundColor: '#F7F4EF',
-  },
-  themeActive: {
+  cloudCardConnected: {
     borderColor: '#7BA591',
   },
-  themeText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#F7F4EF',
-  },
-  themeTextDark: {
-    color: '#2C3E50',
-  },
-  saveButton: {
-    backgroundColor: '#7BA591',
-    padding: 16,
-    borderRadius: 8,
+  cloudCardLeft: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 24,
+    gap: 16,
+    flex: 1,
   },
-  saveButtonText: {
+  cloudInfo: {
+    flex: 1,
+  },
+  cloudTitle: {
     color: '#F7F4EF',
     fontSize: 16,
     fontWeight: '600',
+    marginBottom: 4,
+  },
+  cloudStatus: {
+    color: '#F7F4EF',
+    fontSize: 13,
+    opacity: 0.7,
+  },
+  connectText: {
+    color: '#7BA591',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  disconnectText: {
+    color: '#F7F4EF',
+    fontSize: 14,
+    opacity: 0.7,
+  },
+  manageCard: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#4A5568',
+    padding: 16,
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  manageCardLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    flex: 1,
+  },
+  manageInfo: {
+    flex: 1,
+  },
+  manageTitle: {
+    color: '#F7F4EF',
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  manageSubtext: {
+    color: '#F7F4EF',
+    fontSize: 13,
+    opacity: 0.7,
+  },
+  storageInfo: {
+    flexDirection: 'row',
+    gap: 8,
+    backgroundColor: '#4A5568',
+    padding: 12,
+    borderRadius: 8,
+  },
+  storageText: {
+    flex: 1,
+    color: '#F7F4EF',
+    fontSize: 13,
+    opacity: 0.8,
+    lineHeight: 18,
   },
 });

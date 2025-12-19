@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, ScrollView, Image, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
@@ -32,9 +32,8 @@ export default function OtherUserProfileScreen() {
   ];
 
   const handleFollow = () => {
-    setIsFollowing(!isFollowing);
-    alert(isFollowing ? 'Unfollowed!' : 'Following!');
-  };
+  setIsFollowing(!isFollowing);
+};
 
   const ActivitySection = ({ title, books }: any) => (
     <View style={styles.activitySection}>
@@ -67,11 +66,23 @@ export default function OtherUserProfileScreen() {
     <View style={styles.container}>
       {/* Top Bar */}
       <View style={styles.topBar}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color="#F7F4EF" />
+        <TouchableOpacity onPress={() => router.push('/(tabs)/home')}>
+          <Text style={styles.logo}>TomeTrack</Text>
         </TouchableOpacity>
-        <Text style={styles.username}>{user.username}</Text>
-        <View style={{ width: 24 }} />
+        <View style={styles.topIcons}>
+          <TouchableOpacity onPress={() => router.push('/(tabs)/profile')}>
+            <Ionicons name="person-circle-outline" size={28} color="#F7F4EF" />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => router.push('/(tabs)/library')}>
+            <Ionicons name="library-outline" size={28} color="#F7F4EF" />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => router.push('/(tabs)/explore')}>
+            <Ionicons name="search-outline" size={28} color="#F7F4EF" />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => router.push('/(tabs)/settings')}>
+            <Ionicons name="settings-outline" size={28} color="#F7F4EF" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView style={styles.scrollView}>
@@ -128,26 +139,6 @@ export default function OtherUserProfileScreen() {
           <ActivitySection title="Added a Review" books={reviews} />
         </View>
       </ScrollView>
-
-      {/* Bottom Navigation */}
-      <View style={styles.bottomNav}>
-        <TouchableOpacity style={styles.navItem} onPress={() => router.push('/(tabs)/home')}>
-          <Ionicons name="home-outline" size={24} color="#F7F4EF" />
-          <Text style={styles.navText}>Home</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => router.push('/(tabs)/explore')}>
-          <Ionicons name="search-outline" size={24} color="#F7F4EF" />
-          <Text style={styles.navText}>Explore</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => router.push('/(tabs)/library')}>
-          <Ionicons name="library-outline" size={24} color="#F7F4EF" />
-          <Text style={styles.navText}>Library</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => router.push('/(tabs)/profile')}>
-          <Ionicons name="person-outline" size={24} color="#F7F4EF" />
-          <Text style={styles.navText}>Profile</Text>
-        </TouchableOpacity>
-      </View>
     </View>
   );
 }
@@ -164,10 +155,14 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingTop: 60,
   },
-  username: {
-    fontSize: 18,
+  logo: {
+    fontSize: 20,
     fontWeight: 'bold',
     color: '#F7F4EF',
+  },
+  topIcons: {
+    flexDirection: 'row',
+    gap: 16,
   },
   scrollView: {
     flex: 1,
@@ -196,6 +191,12 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#F7F4EF',
     marginBottom: 4,
+  },
+  username: {
+    fontSize: 16,
+    color: '#F7F4EF',
+    opacity: 0.8,
+    marginBottom: 8,
   },
   bio: {
     fontSize: 14,
@@ -310,24 +311,6 @@ const styles = StyleSheet.create({
   reviewCount: {
     fontSize: 12,
     color: '#F7F4EF',
-    opacity: 0.7,
-  },
-  bottomNav: {
-    flexDirection: 'row',
-    backgroundColor: '#2C3E50',
-    borderTopWidth: 1,
-    borderTopColor: '#4A5568',
-    paddingVertical: 12,
-    paddingBottom: 24,
-  },
-  navItem: {
-    flex: 1,
-    alignItems: 'center',
-    gap: 4,
-  },
-  navText: {
-    color: '#F7F4EF',
-    fontSize: 12,
     opacity: 0.7,
   },
 });
