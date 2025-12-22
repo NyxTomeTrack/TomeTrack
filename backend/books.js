@@ -98,7 +98,12 @@ router.get('/details/:key', async (req, res) => {
 // Add book to our database (when user adds to library)
 router.post('/add', async (req, res) => {
   try {
-    const { title, author, isbn, publisher, publication_year, pages, synopsis, cover_image_url } = req.body;
+    const { title, author, isbn, publisher, publication_year, pages, synopsis, cover_image_url, open_library_key } = req.body;
+
+    console.log('=== ADD BOOK REQUEST ===');
+    console.log('Title:', title);
+    console.log('Author:', author);
+    console.log('Open Library Key:', open_library_key);
 
     if (!title || !author) {
       return res.status(400).json({
@@ -114,6 +119,7 @@ router.post('/add', async (req, res) => {
     );
 
     if (existingBook.rows.length > 0) {
+      console.log('Book already exists with ID:', existingBook.rows[0].id);
       return res.json({
         success: true,
         message: 'Book already exists',
@@ -121,13 +127,69 @@ router.post('/add', async (req, res) => {
       });
     }
 
+    // Try to fetch description from Open Library if we have the key
+    let description = synopsis;
+    let rating = null;
+    let ratingsCount = 0;
+
+    if (open_library_key && !description) {
+      try {
+        console.log('Fetching description from Open Library...');
+        const olResponse = await axios.get(`https://openlibrary.org${open_library_key}.json`, {
+          timeout: 5000
+        });
+        const olData = olResponse.data;
+
+        // Get description
+        if (olData.description) {
+          description = typeof olData.description === 'string' 
+            ? olData.description 
+            : olData.description.value;
+          console.log('Got description (first 100 chars):', description ? description.substring(0, 100) : 'null');
+        }
+
+        // Try to get ratings (if available)
+        try {
+          const ratingsResponse = await axios.get(
+            `https://openlibrary.org${open_library_key}/ratings.json`,
+            { timeout: 3000 }
+          );
+          if (ratingsResponse.data.summary?.average) {
+            rating = Math.round(ratingsResponse.data.summary.average * 10) / 10;
+            ratingsCount = ratingsResponse.data.summary.count || 0;
+            console.log('Got rating:', rating, 'from', ratingsCount, 'ratings');
+          }
+        } catch (ratingError) {
+          console.log('No ratings available');
+        }
+      } catch (error) {
+        console.log('Could not fetch Open Library details:', error.message);
+        // Continue without description - not a critical error
+      }
+    }
+
     // Insert new book
+    console.log('Inserting book into database...');
+    console.log('Values:', {
+      title,
+      author,
+      isbn: isbn || null,
+      publisher: publisher || null,
+      publication_year: publication_year || null,
+      pages: pages || null,
+      synopsis: description ? description.substring(0, 50) + '...' : null,
+      rating,
+      ratingsCount
+    });
+
     const result = await pool.query(
-      `INSERT INTO books (title, author, isbn, publisher, publication_year, pages, synopsis, cover_image_url)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `INSERT INTO books (title, author, isbn, publisher, publication_year, pages, synopsis, cover_image_url, rating, ratings_count)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING *`,
-      [title, author, isbn, publisher, publication_year, pages, synopsis, cover_image_url]
+      [title, author, isbn, publisher, publication_year, pages, description, cover_image_url, rating, ratingsCount]
     );
+
+    console.log('Book inserted successfully with ID:', result.rows[0].id);
 
     res.status(201).json({
       success: true,
@@ -136,10 +198,42 @@ router.post('/add', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Add book error:', error);
+    console.error('=== ADD BOOK ERROR ===');
+    console.error('Error name:', error.name);
+    console.error('Error message:', error.message);
+    console.error('Error stack:', error.stack);
     res.status(500).json({
       success: false,
-      error: 'Failed to add book'
+      error: 'Failed to add book',
+      details: error.message
+    });
+  }
+});
+
+// Get single book by ID
+router.get('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const result = await pool.query(
+      'SELECT * FROM books WHERE id = $1',
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Book not found'
+      });
+    }
+
+    res.json(result.rows[0]);
+
+  } catch (error) {
+    console.error('Get book by ID error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get book'
     });
   }
 });

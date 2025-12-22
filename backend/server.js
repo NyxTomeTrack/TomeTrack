@@ -8,6 +8,7 @@ const PORT = process.env.PORT || 3000;
 const authRoutes = require('./auth');
 const bookRoutes = require('./books');
 const libraryRoutes = require('./library');
+const reviewsRoutes = require('./reviews'); // ADD THIS LINE
 
 // Get user's library
 app.get('/api/library', async (req, res) => {
@@ -135,6 +136,7 @@ app.use(express.json());
 app.use('/api/auth', authRoutes);
 app.use('/api/books', bookRoutes);
 app.use('/api/library', libraryRoutes);
+app.use('/api/reviews', reviewsRoutes); // ADD THIS LINE
 
 // Test route
 app.get('/', (req, res) => {

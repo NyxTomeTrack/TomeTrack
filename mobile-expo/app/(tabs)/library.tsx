@@ -1,107 +1,157 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, ActivityIndicator, RefreshControl, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter, useFocusEffect } from 'expo-router';
-import { useState, useCallback } from 'react';
-import { getUserLibrary } from '../../services/library';
+import { useRouter } from 'expo-router';
+import { useState, useEffect } from 'react';
+import axios from 'axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const API_URL = 'http://192.168.101.22:3000/api';
 
 export default function LibraryScreen() {
   const router = useRouter();
+  const [activeTab, setActiveTab] = useState<'all' | 'reading' | 'finished' | 'want_to_read' | 'dnf'>('all');
   const [library, setLibrary] = useState<any[]>([]);
+  const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
 
-  // Load library when screen comes into focus
-  useFocusEffect(
-    useCallback(() => {
+  useEffect(() => {
+    getUserId();
+  }, []);
+
+  useEffect(() => {
+    if (userId) {
       loadLibrary();
-    }, [])
-  );
+      loadStats();
+    }
+  }, [userId]);
 
-  const loadLibrary = async () => {
+  const getUserId = async () => {
+    try {
+      const userData = await AsyncStorage.getItem('@tometrack_user');
+      if (userData) {
+        const user = JSON.parse(userData);
+        console.log('Library - Got user ID:', user.id);
+        setUserId(user.id);
+      } else {
+        console.log('Library - No user data found');
+        Alert.alert('Error', 'Please log in again');
+        router.replace('/login');
+      }
+    } catch (error) {
+      console.error('Get user ID error:', error);
+    }
+  };
+
+  const loadLibrary = async (status?: string) => {
+    if (!userId) return;
+    
     try {
       setLoading(true);
-      console.log('Loading library...');
-      const data = await getUserLibrary();
-      console.log('Library data:', data);
-      setLibrary(data);
-    } catch (error) {
-      console.error('Error loading library:', error);
+      let url = `${API_URL}/library/${userId}`;
+      if (status && status !== 'all') {
+        url += `?status=${status}`;
+      }
+
+      console.log('Loading library from:', url);
+      const response = await axios.get(url);
+      console.log('Library response:', response.data);
+      setLibrary(response.data.library || []);
+    } catch (error: any) {
+      console.error('Load library error:', error.response?.data || error);
+      if (error.response?.status === 404) {
+        setLibrary([]);
+      } else {
+        Alert.alert('Error', 'Failed to load library');
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  // Group books by status
-  const currentlyReading = library.filter(book => book.status === 'currently_reading');
-  const toRead = library.filter(book => book.status === 'to_read');
-  const read = library.filter(book => book.status === 'read');
-  const dnf = library.filter(book => book.status === 'dnf');
+  const loadStats = async () => {
+    if (!userId) return;
+    
+    try {
+      console.log('Loading stats for user:', userId);
+      const response = await axios.get(`${API_URL}/library/stats/${userId}`);
+      console.log('Stats response:', response.data);
+      setStats(response.data.stats);
+    } catch (error: any) {
+      console.error('Load stats error:', error.response?.data || error);
+    }
+  };
 
-  const BookCard = ({ book }: any) => (
-    <TouchableOpacity 
-      style={styles.bookCard}
-      onPress={() => router.push(`/book/${book.book_id}`)}
-    >
-      <View style={styles.bookCover}>
-        <Text style={styles.bookCoverText}>Book Cover</Text>
-      </View>
-      <View style={styles.bookInfo}>
-        <Text style={styles.bookTitle}>Book ID: {book.book_id}</Text>
-        <Text style={styles.bookAuthor}>Status: {book.status}</Text>
-        {book.rating && (
-          <View style={styles.stars}>
-            {[1, 2, 3, 4, 5].map((star) => (
-              <Ionicons
-                key={star}
-                name={star <= book.rating ? "star" : "star-outline"}
-                size={14}
-                color="#7BA591"
-              />
-            ))}
-          </View>
-        )}
-      </View>
-    </TouchableOpacity>
-  );
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadLibrary(activeTab === 'all' ? undefined : activeTab);
+    await loadStats();
+    setRefreshing(false);
+  };
 
-  const BookSection = ({ title, books, emptyMessage }: any) => (
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>{title}</Text>
-      {books.length === 0 ? (
-        <Text style={styles.emptyText}>{emptyMessage}</Text>
-      ) : (
-        books.map((book: any) => <BookCard key={book.id} book={book} />)
-      )}
-    </View>
-  );
+  const handleTabChange = (tab: typeof activeTab) => {
+    setActiveTab(tab);
+    loadLibrary(tab === 'all' ? undefined : tab);
+  };
 
-  if (loading) {
+  const getFilteredBooks = () => {
+    if (activeTab === 'all') return library;
+    return library.filter(item => item.status === activeTab);
+  };
+
+  const renderBookCard = (item: any) => {
+    const progressPercentage = item.progress_percentage || 0;
+    
     return (
-      <View style={styles.container}>
-        <View style={styles.topBar}>
-          <TouchableOpacity onPress={() => router.push('/(tabs)/home')}>
-            <Text style={styles.logo}>TomeTrack</Text>
-          </TouchableOpacity>
-          <View style={styles.topIcons}>
-            <TouchableOpacity onPress={() => router.push('/(tabs)/profile')}>
-              <Ionicons name="person-circle-outline" size={28} color="#F7F4EF" />
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => router.push('/(tabs)/library')}>
-              <Ionicons name="library" size={28} color="#7BA591" />
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => router.push('/(tabs)/explore')}>
-              <Ionicons name="search-outline" size={28} color="#F7F4EF" />
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => router.push('/(tabs)/settings')}>
-              <Ionicons name="settings-outline" size={28} color="#F7F4EF" />
-            </TouchableOpacity>
+      <View key={item.library_id} style={styles.bookCard}>
+        <TouchableOpacity
+          style={{ flex: 1, flexDirection: 'row', gap: 12 }}
+          onPress={() => router.push(`/book/${item.book_id}`)}
+        >
+          {item.cover_image_url ? (
+            <Image
+              source={{ uri: item.cover_image_url }}
+              style={styles.bookCover}
+              resizeMode="cover"
+            />
+          ) : (
+            <View style={styles.bookCover}>
+              <Ionicons name="book-outline" size={32} color="#F7F4EF" opacity={0.3} />
+              <Text style={styles.noCoverText}>No Cover</Text>
+            </View>
+          )}
+
+          <View style={styles.bookInfo}>
+            <Text style={styles.bookTitle} numberOfLines={2}>{item.title}</Text>
+            <Text style={styles.bookAuthor} numberOfLines={1}>{item.author}</Text>
+            
+            {item.status === 'reading' && (
+              <View style={styles.progressContainer}>
+                <View style={styles.progressBar}>
+                  <View style={[styles.progressFill, { width: `${progressPercentage}%` }]} />
+                </View>
+                <Text style={styles.progressText}>{progressPercentage}%</Text>
+              </View>
+            )}
+
+            <View style={styles.statusBadge}>
+              <Text style={styles.statusText}>
+                {item.status === 'want_to_read' && 'Want to Read'}
+                {item.status === 'reading' && 'Currently Reading'}
+                {item.status === 'finished' && 'Finished'}
+                {item.status === 'dnf' && 'DNF'}
+              </Text>
+            </View>
           </View>
-        </View>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#7BA591" />
-        </View>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.moreButton}>
+          <Ionicons name="ellipsis-vertical" size={20} color="#F7F4EF" />
+        </TouchableOpacity>
       </View>
     );
-  }
+  };
 
   return (
     <View style={styles.container}>
@@ -120,51 +170,117 @@ export default function LibraryScreen() {
           <TouchableOpacity onPress={() => router.push('/(tabs)/explore')}>
             <Ionicons name="search-outline" size={28} color="#F7F4EF" />
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => router.push('/(tabs)/settings')}>
+          <TouchableOpacity onPress={() => router.push('/settings')}>
             <Ionicons name="settings-outline" size={28} color="#F7F4EF" />
           </TouchableOpacity>
         </View>
       </View>
 
-      <ScrollView style={styles.scrollView}>
-        <Text style={styles.pageTitle}>My Library</Text>
+      {/* Stats Bar */}
+      {stats && (
+        <View style={styles.statsBar}>
+          <View style={styles.statItem}>
+            <Text style={styles.statNumber}>{stats.reading_count || 0}</Text>
+            <Text style={styles.statLabel}>Reading</Text>
+          </View>
+          <View style={styles.statItem}>
+            <Text style={styles.statNumber}>{stats.finished_count || 0}</Text>
+            <Text style={styles.statLabel}>Finished</Text>
+          </View>
+          <View style={styles.statItem}>
+            <Text style={styles.statNumber}>{stats.want_to_read_count || 0}</Text>
+            <Text style={styles.statLabel}>To Read</Text>
+          </View>
+          <View style={styles.statItem}>
+            <Text style={styles.statNumber}>{stats.total_books || 0}</Text>
+            <Text style={styles.statLabel}>Total</Text>
+          </View>
+        </View>
+      )}
 
-        {library.length === 0 ? (
+      {/* Filter Tabs */}
+      <ScrollView 
+        horizontal 
+        showsHorizontalScrollIndicator={false}
+        style={styles.tabsScrollView}
+        contentContainerStyle={styles.tabsContainer}
+      >
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 'all' && styles.tabActive]}
+          onPress={() => handleTabChange('all')}
+        >
+          <Text style={[styles.tabText, activeTab === 'all' && styles.tabTextActive]}>
+            All
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 'reading' && styles.tabActive]}
+          onPress={() => handleTabChange('reading')}
+        >
+          <Text style={[styles.tabText, activeTab === 'reading' && styles.tabTextActive]}>
+            Reading
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 'finished' && styles.tabActive]}
+          onPress={() => handleTabChange('finished')}
+        >
+          <Text style={[styles.tabText, activeTab === 'finished' && styles.tabTextActive]}>
+            Finished
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 'want_to_read' && styles.tabActive]}
+          onPress={() => handleTabChange('want_to_read')}
+        >
+          <Text style={[styles.tabText, activeTab === 'want_to_read' && styles.tabTextActive]}>
+            To Read
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 'dnf' && styles.tabActive]}
+          onPress={() => handleTabChange('dnf')}
+        >
+          <Text style={[styles.tabText, activeTab === 'dnf' && styles.tabTextActive]}>
+            DNF
+          </Text>
+        </TouchableOpacity>
+      </ScrollView>
+
+      {/* Books List */}
+      <ScrollView
+        style={styles.scrollView}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#7BA591" />
+        }
+      >
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#7BA591" />
+            <Text style={styles.loadingText}>Loading your library...</Text>
+          </View>
+        ) : library.length === 0 ? (
           <View style={styles.emptyState}>
-            <Ionicons name="book-outline" size={64} color="#7BA591" opacity={0.5} />
-            <Text style={styles.emptyStateTitle}>Your library is empty</Text>
-            <Text style={styles.emptyStateText}>Start adding books to track your reading!</Text>
-            <TouchableOpacity 
+            <Ionicons name="library-outline" size={80} color="#4A5568" />
+            <Text style={styles.emptyTitle}>Your library is empty</Text>
+            <Text style={styles.emptySubtext}>
+              Search for books and start building your collection
+            </Text>
+            <TouchableOpacity
               style={styles.exploreButton}
               onPress={() => router.push('/(tabs)/explore')}
             >
+              <Ionicons name="search" size={20} color="#F7F4EF" />
               <Text style={styles.exploreButtonText}>Explore Books</Text>
             </TouchableOpacity>
           </View>
         ) : (
-          <>
-            <BookSection 
-              title="Currently Reading" 
-              books={currentlyReading}
-              emptyMessage="No books currently reading"
-            />
-            <BookSection 
-              title="To Read" 
-              books={toRead}
-              emptyMessage="No books in your to-read list"
-            />
-            <BookSection 
-              title="Read" 
-              books={read}
-              emptyMessage="No books marked as read"
-            />
-            <BookSection 
-              title="Did Not Finish" 
-              books={dnf}
-              emptyMessage="No DNF books"
-            />
-          </>
+          <View style={styles.booksContainer}>
+            {getFilteredBooks().map(renderBookCard)}
+          </View>
         )}
+
+        <View style={styles.spacer} />
       </ScrollView>
     </View>
   );
@@ -191,87 +307,96 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 16,
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
+  statsBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    backgroundColor: '#4A5568',
+    marginHorizontal: 20,
+    marginBottom: 20,
+    padding: 16,
+    borderRadius: 12,
+  },
+  statItem: {
     alignItems: 'center',
+  },
+  statNumber: {
+    color: '#7BA591',
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  statLabel: {
+    color: '#F7F4EF',
+    fontSize: 12,
+    opacity: 0.7,
+  },
+  tabsScrollView: {
+    maxHeight: 50,
+    marginBottom: 20,
+  },
+  tabsContainer: {
+    paddingHorizontal: 20,
+    gap: 8,
+    alignItems: 'center',
+  },
+  tab: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+    backgroundColor: '#4A5568',
+    minWidth: 80,
+    alignItems: 'center',
+  },
+  tabActive: {
+    backgroundColor: '#7BA591',
+  },
+  tabText: {
+    color: '#F7F4EF',
+    fontSize: 14,
+    fontWeight: '500',
+    opacity: 0.7,
+  },
+  tabTextActive: {
+    opacity: 1,
+    fontWeight: '600',
   },
   scrollView: {
     flex: 1,
-    padding: 20,
   },
-  pageTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#F7F4EF',
-    marginBottom: 24,
-  },
-  emptyState: {
-    flex: 1,
+  loadingContainer: {
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 80,
+    paddingVertical: 60,
   },
-  emptyStateTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#F7F4EF',
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  emptyStateText: {
-    fontSize: 14,
-    color: '#F7F4EF',
-    opacity: 0.7,
-    marginBottom: 24,
-  },
-  exploreButton: {
-    backgroundColor: '#7BA591',
-    paddingHorizontal: 32,
-    paddingVertical: 12,
-    borderRadius: 8,
-  },
-  exploreButtonText: {
+  loadingText: {
     color: '#F7F4EF',
     fontSize: 16,
-    fontWeight: '600',
+    marginTop: 16,
+    opacity: 0.7,
   },
-  section: {
-    marginBottom: 32,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#F7F4EF',
-    marginBottom: 12,
-  },
-  emptyText: {
-    color: '#F7F4EF',
-    opacity: 0.5,
-    fontSize: 14,
-    fontStyle: 'italic',
+  booksContainer: {
+    padding: 20,
   },
   bookCard: {
     flexDirection: 'row',
     backgroundColor: '#4A5568',
+    borderRadius: 12,
     padding: 12,
-    borderRadius: 8,
-    marginBottom: 12,
+    marginBottom: 16,
     gap: 12,
   },
   bookCover: {
-    width: 60,
-    height: 90,
+    width: 70,
+    height: 105,
+    borderRadius: 8,
     backgroundColor: '#2C3E50',
-    borderRadius: 4,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  bookCoverText: {
+  noCoverText: {
     color: '#F7F4EF',
     fontSize: 10,
     opacity: 0.5,
-    textAlign: 'center',
+    marginTop: 8,
   },
   bookInfo: {
     flex: 1,
@@ -287,10 +412,81 @@ const styles = StyleSheet.create({
     color: '#F7F4EF',
     fontSize: 14,
     opacity: 0.7,
-    marginBottom: 4,
+    marginBottom: 8,
   },
-  stars: {
+  progressContainer: {
     flexDirection: 'row',
-    gap: 2,
+    alignItems: 'center',
+    marginBottom: 8,
+    gap: 8,
+  },
+  progressBar: {
+    flex: 1,
+    height: 6,
+    backgroundColor: '#2C3E50',
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: '#7BA591',
+  },
+  progressText: {
+    color: '#F7F4EF',
+    fontSize: 12,
+    opacity: 0.7,
+    width: 40,
+  },
+  statusBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#2C3E50',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  statusText: {
+    color: '#7BA591',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  moreButton: {
+    padding: 8,
+    justifyContent: 'center',
+  },
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: 80,
+    paddingHorizontal: 40,
+  },
+  emptyTitle: {
+    color: '#F7F4EF',
+    fontSize: 22,
+    fontWeight: 'bold',
+    marginTop: 20,
+    marginBottom: 8,
+  },
+  emptySubtext: {
+    color: '#F7F4EF',
+    fontSize: 15,
+    opacity: 0.6,
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  exploreButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#7BA591',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+    gap: 8,
+  },
+  exploreButtonText: {
+    color: '#F7F4EF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  spacer: {
+    height: 40,
   },
 });

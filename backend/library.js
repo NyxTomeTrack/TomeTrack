@@ -3,11 +3,14 @@ const pool = require('./db');
 
 const router = express.Router();
 
+// Valid status values
+const VALID_STATUSES = ['want_to_read', 'reading', 'finished', 'dnf'];
+
 // Get user's library
 router.get('/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
-    const { status } = req.query; // Optional filter: want_to_read, reading, finished
+    const { status } = req.query; // Optional filter: want_to_read, reading, finished, dnf
 
     let query = `
       SELECT 
@@ -65,6 +68,14 @@ router.post('/add', async (req, res) => {
       return res.status(400).json({
         success: false,
         error: 'user_id, book_id, and status are required'
+      });
+    }
+
+    // Validate status
+    if (!VALID_STATUSES.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        error: `Invalid status. Must be one of: ${VALID_STATUSES.join(', ')}`
       });
     }
 
@@ -126,6 +137,14 @@ router.put('/update/:libraryId', async (req, res) => {
     const { libraryId } = req.params;
     const { status, progress_percentage, file_path, file_format } = req.body;
 
+    // Validate status if provided
+    if (status && !VALID_STATUSES.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        error: `Invalid status. Must be one of: ${VALID_STATUSES.join(', ')}`
+      });
+    }
+
     // Build dynamic update query
     const updates = [];
     const values = [];
@@ -142,6 +161,9 @@ router.put('/update/:libraryId', async (req, res) => {
       } else if (status === 'finished') {
         updates.push(`finished_at = NOW()`);
         updates.push(`progress_percentage = 100`);
+      } else if (status === 'dnf') {
+        updates.push(`finished_at = NOW()`);
+        // Keep current progress for DNF books
       }
     }
 
@@ -239,6 +261,7 @@ router.get('/stats/:userId', async (req, res) => {
         COUNT(*) FILTER (WHERE status = 'want_to_read') as want_to_read_count,
         COUNT(*) FILTER (WHERE status = 'reading') as reading_count,
         COUNT(*) FILTER (WHERE status = 'finished') as finished_count,
+        COUNT(*) FILTER (WHERE status = 'dnf') as dnf_count,
         COUNT(*) as total_books,
         AVG(progress_percentage) FILTER (WHERE status = 'reading') as avg_progress
       FROM user_books
