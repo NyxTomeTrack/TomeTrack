@@ -1,267 +1,502 @@
-import { View, Text, StyleSheet, TouchableOpacity, Animated, PanResponder } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { useState, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { WebView } from 'react-native-webview';
+import PagerView from 'react-native-pager-view';
+import * as FileSystem from 'expo-file-system/legacy';
+import axios from 'axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const API_URL = 'http://192.168.101.22:3000/api';
+const { width, height } = Dimensions.get('window');
 
 export default function ReaderScreen() {
-  const { id } = useLocalSearchParams();
   const router = useRouter();
-  const [showSettings, setShowSettings] = useState(false);
-  const [showControls, setShowControls] = useState(false);
-  const [currentPage, setCurrentPage] = useState(123);
-  const totalPages = 1000;
-  const hideTimer = useRef<NodeJS.Timeout | null>(null);
-  const translateX = useRef(new Animated.Value(0)).current;
+  const { id } = useLocalSearchParams();
+  const pagerRef = useRef<PagerView>(null);
+  const webViewRef = useRef<WebView>(null);
+  const [book, setBook] = useState<any>(null);
+  const [libraryEntry, setLibraryEntry] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [pages, setPages] = useState<string[]>([]);
+  const [currentPage, setCurrentPage] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [isEpubText, setIsEpubText] = useState(false);
+  const [htmlContent, setHtmlContent] = useState('');
 
-  // Mock book content per page
-  const bookContent = `Chapter 1: The Beginning
+  useEffect(() => {
+    getUserId();
+  }, []);
 
-Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
-
-Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
-
-Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo.
-
-Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed quia consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt.
-
-Neque porro quisquam est, qui dolorem ipsum quia dolor sit amet, consectetur, adipisci velit, sed quia non numquam eius modi tempora incidunt ut labore et dolore magnam aliquam quaerat voluptatem.`;
-
-  const handleTapPage = () => {
-    // Toggle controls visibility
-    setShowControls(!showControls);
-
-    // Clear existing timer
-    if (hideTimer.current) {
-      clearTimeout(hideTimer.current);
+  useEffect(() => {
+    if (userId && id) {
+      loadBookAndFile();
     }
+  }, [userId, id]);
 
-    // Set new timer to hide after 3 seconds
-    if (!showControls) {
-      hideTimer.current = setTimeout(() => {
-        setShowControls(false);
-      }, 3000);
+  const getUserId = async () => {
+    try {
+      const userData = await AsyncStorage.getItem('@tometrack_user');
+      if (userData) {
+        const user = JSON.parse(userData);
+        setUserId(user.id);
+      }
+    } catch (error) {
+      console.error('Get user ID error:', error);
     }
   };
 
-  const handleOpenSettings = () => {
-    setShowSettings(true);
-    // Clear hide timer when opening settings
-    if (hideTimer.current) {
-      clearTimeout(hideTimer.current);
-    }
-  };
+  const loadBookAndFile = async () => {
+    try {
+      setLoading(true);
 
-  const goToNextPage = () => {
-    if (currentPage < totalPages) {
-      setCurrentPage(currentPage + 1);
-      
-      // Animate page turn
-      Animated.sequence([
-        Animated.timing(translateX, {
-          toValue: -50,
-          duration: 150,
-          useNativeDriver: true,
-        }),
-        Animated.timing(translateX, {
-          toValue: 0,
-          duration: 150,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    }
-  };
+      const bookResponse = await axios.get(`${API_URL}/books/${id}`);
+      setBook(bookResponse.data);
 
-  const goToPreviousPage = () => {
-    if (currentPage > 1) {
-      setCurrentPage(currentPage - 1);
-      
-      // Animate page turn
-      Animated.sequence([
-        Animated.timing(translateX, {
-          toValue: 50,
-          duration: 150,
-          useNativeDriver: true,
-        }),
-        Animated.timing(translateX, {
-          toValue: 0,
-          duration: 150,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    }
-  };
+      if (userId) {
+        const libraryResponse = await axios.get(`${API_URL}/library/${userId}`);
+        const userBook = libraryResponse.data.library.find((item: any) => item.book_id === id);
+        setLibraryEntry(userBook);
 
-  // Pan responder for swipe gestures
-  const panResponder = useRef(
-    PanResponder.create({
-      onMoveShouldSetPanResponder: (evt, gestureState) => {
-        // Only respond to horizontal swipes
-        return Math.abs(gestureState.dx) > 20;
-      },
-      onPanResponderRelease: (evt, gestureState) => {
-        if (gestureState.dx > 50) {
-          // Swipe right - Previous page
-          goToPreviousPage();
-        } else if (gestureState.dx < -50) {
-          // Swipe left - Next page
-          goToNextPage();
+        if (userBook && userBook.file_path) {
+          await loadFile(userBook.file_path, userBook.file_format, bookResponse.data);
+          
+          if (userBook.status !== 'reading' && userBook.library_id) {
+            try {
+              await axios.put(`${API_URL}/library/update/${userBook.library_id}`, {
+                status: 'reading'
+              });
+            } catch (error) {
+              console.error('Update status error:', error);
+            }
+          }
+        } else {
+          Alert.alert('No File', 'Please upload an ebook file first', [
+            { text: 'OK', onPress: () => router.back() }
+          ]);
         }
-      },
-    })
-  ).current;
+      }
+    } catch (error: any) {
+      console.error('Load book error:', error);
+      Alert.alert('Error', 'Failed to load book');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const progress = (currentPage / totalPages) * 100;
+  const splitIntoPages = (text: string) => {
+    const charsPerLine = Math.floor((width - 48) / 11);
+    const linesPerPage = Math.floor((height - 200) / 32);
+    const charsPerPage = charsPerLine * linesPerPage;
+
+    const pageArray: string[] = [];
+    let startIndex = 0;
+
+    while (startIndex < text.length) {
+      let endIndex = startIndex + charsPerPage;
+      
+      if (endIndex < text.length) {
+        const nextSpace = text.indexOf(' ', endIndex);
+        const prevSpace = text.lastIndexOf(' ', endIndex);
+        
+        if (prevSpace > startIndex) {
+          endIndex = prevSpace;
+        }
+      }
+
+      pageArray.push(text.substring(startIndex, endIndex).trim());
+      startIndex = endIndex;
+    }
+
+    return pageArray;
+  };
+
+  const loadFile = async (filePath: string, fileFormat: string, bookData: any) => {
+    try {
+      console.log('Loading file:', filePath, 'Format:', fileFormat);
+
+      if (fileFormat === 'txt') {
+        const content = await FileSystem.readAsStringAsync(filePath);
+        const pageArray = splitIntoPages(content);
+        setPages(pageArray);
+        setTotalPages(pageArray.length);
+        setIsEpubText(true);
+      } else if (fileFormat === 'pdf') {
+        setHtmlContent(filePath);
+      } else if (fileFormat === 'epub') {
+        try {
+          const JSZip = require('jszip');
+          
+          const base64 = await FileSystem.readAsStringAsync(filePath, {
+            encoding: 'base64',
+          });
+
+          const binaryString = atob(base64);
+          const bytes = new Uint8Array(binaryString.length);
+          for (let i = 0; i < binaryString.length; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+          }
+
+          const zip = new JSZip();
+          const epub = await zip.loadAsync(bytes);
+
+          let content = '';
+          const files = Object.keys(epub.files);
+          
+          for (const filename of files) {
+            if (filename.includes('.xhtml') || filename.includes('.html')) {
+              const file = epub.files[filename];
+              if (file && !file.dir) {
+                const text = await file.async('text');
+                const strippedText = text
+                  .replace(/<style[^>]*>.*?<\/style>/gs, '')
+                  .replace(/<script[^>]*>.*?<\/script>/gs, '')
+                  .replace(/<[^>]+>/g, ' ')
+                  .replace(/\s+/g, ' ')
+                  .trim();
+                content += strippedText + '\n\n';
+              }
+            }
+          }
+
+          if (content.length > 0) {
+            const pageArray = splitIntoPages(content);
+            setPages(pageArray);
+            setTotalPages(pageArray.length);
+            setIsEpubText(true);
+          } else {
+            throw new Error('No readable content found');
+          }
+          
+        } catch (error) {
+          console.error('EPUB parsing error:', error);
+          setIsEpubText(false);
+          const epubHTML = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              <style>
+                body {
+                  background: #2C3E50;
+                  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                  padding: 24px;
+                  line-height: 1.6;
+                  color: #F7F4EF;
+                }
+                .book-title {
+                  font-size: 24px;
+                  font-weight: 600;
+                  margin-bottom: 8px;
+                  color: #F7F4EF;
+                }
+                .book-author {
+                  font-size: 16px;
+                  font-style: italic;
+                  color: #7BA591;
+                  margin-bottom: 32px;
+                }
+                .message {
+                  background: #7BA591;
+                  color: #F7F4EF;
+                  padding: 20px;
+                  border-radius: 12px;
+                  margin-bottom: 24px;
+                }
+                .message h3 {
+                  margin-bottom: 8px;
+                  font-size: 18px;
+                  font-weight: 600;
+                }
+                .message p {
+                  margin: 0;
+                  font-size: 15px;
+                  opacity: 0.95;
+                }
+                .section-title {
+                  font-size: 18px;
+                  font-weight: 600;
+                  margin-bottom: 16px;
+                  margin-top: 24px;
+                  color: #F7F4EF;
+                }
+                p {
+                  margin-bottom: 16px;
+                  font-size: 15px;
+                  opacity: 0.9;
+                }
+                ul {
+                  margin: 16px 0;
+                  padding-left: 0;
+                  list-style: none;
+                }
+                li {
+                  margin: 12px 0;
+                  padding-left: 24px;
+                  position: relative;
+                  font-size: 15px;
+                }
+                li:before {
+                  content: "•";
+                  position: absolute;
+                  left: 8px;
+                  color: #7BA591;
+                  font-weight: bold;
+                }
+                .instructions {
+                  background: #4A5568;
+                  color: #F7F4EF;
+                  padding: 20px;
+                  border-radius: 12px;
+                  margin-top: 24px;
+                }
+                .instructions p {
+                  margin: 0;
+                  font-size: 14px;
+                }
+                .instructions p:first-child {
+                  font-weight: 600;
+                  margin-bottom: 8px;
+                }
+              </style>
+            </head>
+            <body>
+              <div class="book-title">${bookData?.title || 'Book'}</div>
+              <div class="book-author">by ${bookData?.author || 'Unknown Author'}</div>
+              
+              <div class="message">
+                <h3>✓ EPUB File Loaded</h3>
+                <p>Your EPUB file has been successfully uploaded and is stored in your library.</p>
+              </div>
+              
+              <div class="section-title">About EPUB Reading</div>
+              
+              <p>EPUB files contain complex formatting, images, and interactive elements that require specialized rendering engines.</p>
+              
+              <p>For the best reading experience with full formatting, navigation, and features, we recommend:</p>
+              
+              <ul>
+                <li>Google Play Books</li>
+                <li>Apple Books (iOS)</li>
+                <li>Moon+ Reader</li>
+                <li>FBReader</li>
+              </ul>
+              
+              <div class="instructions">
+                <p>Your file is safely stored in TomeTrack</p>
+                <p>You can track your reading progress, add reviews, and manage your library here. Export or share your EPUB file to dedicated reader apps for the full reading experience.</p>
+              </div>
+            </body>
+            </html>
+          `;
+          
+          setHtmlContent(epubHTML);
+        }
+      } else if (fileFormat === 'mobi') {
+        setHtmlContent(`
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <style>
+              body {
+                padding: 24px;
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                line-height: 1.6;
+                color: #F7F4EF;
+                background: #2C3E50;
+                margin: 0;
+              }
+              h1 {
+                color: #F7F4EF;
+                font-size: 24px;
+                font-weight: 600;
+                margin-bottom: 8px;
+              }
+              .author {
+                font-style: italic;
+                color: #7BA591;
+                margin-bottom: 32px;
+                font-size: 16px;
+              }
+              p {
+                margin: 16px 0;
+                font-size: 15px;
+                opacity: 0.9;
+              }
+              .info-box {
+                background: #7BA591;
+                padding: 20px;
+                border-radius: 12px;
+                margin: 24px 0;
+              }
+              .success {
+                color: #F7F4EF;
+                font-weight: 600;
+                font-size: 18px;
+                margin-bottom: 8px;
+              }
+              .info-box p {
+                color: #F7F4EF;
+                opacity: 0.95;
+                margin: 0;
+              }
+              .section-title {
+                font-size: 18px;
+                font-weight: 600;
+                margin-bottom: 16px;
+                margin-top: 24px;
+                color: #F7F4EF;
+              }
+              ul {
+                margin: 16px 0;
+                padding-left: 0;
+                list-style: none;
+              }
+              li {
+                margin: 12px 0;
+                padding-left: 24px;
+                position: relative;
+                font-size: 15px;
+              }
+              li:before {
+                content: "•";
+                position: absolute;
+                left: 8px;
+                color: #7BA591;
+                font-weight: bold;
+              }
+              .instructions {
+                background: #4A5568;
+                padding: 20px;
+                border-radius: 12px;
+                margin-top: 24px;
+              }
+              .instructions p {
+                margin: 0;
+                font-size: 14px;
+              }
+              .instructions p:first-child {
+                font-weight: 600;
+                margin-bottom: 8px;
+              }
+            </style>
+          </head>
+          <body>
+            <h1>${bookData?.title || 'Book'}</h1>
+            <p class="author">by ${bookData?.author || 'Unknown Author'}</p>
+            
+            <div class="info-box">
+              <p class="success">✓ File successfully uploaded</p>
+              <p><b>Format:</b> MOBI</p>
+            </div>
+            
+            <div class="section-title">About MOBI Reading</div>
+            
+            <p>MOBI files are Amazon's proprietary format and require specialized readers.</p>
+            
+            <p>For the best reading experience with MOBI files, we recommend:</p>
+            <ul>
+              <li>Kindle app</li>
+              <li>Calibre (desktop)</li>
+              <li>Convert to EPUB using Calibre</li>
+            </ul>
+            
+            <div class="instructions">
+              <p>Your file is safely stored in TomeTrack</p>
+              <p>You can track your reading progress and manage your library here.</p>
+            </div>
+          </body>
+          </html>
+        `);
+      }
+
+    } catch (error: any) {
+      console.error('Load file error:', error);
+      Alert.alert('Error', 'Failed to load file content');
+    }
+  };
+
+  const renderPDFReader = () => {
+    return (
+      <WebView
+        source={{ uri: htmlContent }}
+        style={styles.webView}
+        onError={(error) => {
+          console.error('WebView error:', error);
+          Alert.alert('Error', 'Failed to load PDF');
+        }}
+      />
+    );
+  };
+
+  const renderWebReader = () => {
+    return (
+      <WebView
+        ref={webViewRef}
+        source={{ html: htmlContent }}
+        style={styles.webView}
+        originWhitelist={['*']}
+        javaScriptEnabled={true}
+        domStorageEnabled={true}
+      />
+    );
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#7BA591" />
+          <Text style={styles.loadingText}>Loading book...</Text>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
-      {/* Top Bar - Only show when controls are visible */}
-      {showControls && (
-        <View style={styles.topBar}>
-          <TouchableOpacity onPress={() => router.push('/(tabs)/home')}>
-            <Text style={styles.logo}>TomeTrack</Text>
-          </TouchableOpacity>
-          <View style={styles.topIcons}>
-            <TouchableOpacity onPress={() => router.push('/(tabs)/profile')}>
-              <Ionicons name="person-circle-outline" size={28} color="#F7F4EF" />
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => router.push('/(tabs)/library')}>
-              <Ionicons name="library-outline" size={28} color="#F7F4EF" />
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => router.push('/(tabs)/explore')}>
-              <Ionicons name="search-outline" size={28} color="#F7F4EF" />
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => router.push('/(tabs)/settings')}>
-              <Ionicons name="settings-outline" size={28} color="#F7F4EF" />
-            </TouchableOpacity>
-          </View>
+      <View style={styles.topBar}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <Ionicons name="arrow-back" size={24} color="#F7F4EF" />
+        </TouchableOpacity>
+        <View style={styles.bookInfo}>
+          <Text style={styles.bookTitle} numberOfLines={1}>
+            {book?.title || 'Reading'}
+          </Text>
+          <Text style={styles.bookAuthor} numberOfLines={1}>
+            {book?.author || ''}
+          </Text>
         </View>
-      )}
-
-      {/* Book Header - Only show when controls are visible */}
-      {showControls && (
-        <View style={styles.header}>
-          <Text style={styles.bookTitle}>Title of Book</Text>
-          <Text style={styles.chapterTitle}>Chapter 1</Text>
-        </View>
-      )}
-
-      {/* Content - Swipe to turn pages, tap to toggle controls */}
-      <View style={styles.contentContainer} {...panResponder.panHandlers}>
-        <TouchableOpacity 
-          style={styles.tapArea}
-          activeOpacity={1}
-          onPress={handleTapPage}
-        >
-          <Animated.View style={[styles.content, { transform: [{ translateX }] }]}>
-            <Text style={styles.text}>{bookContent}</Text>
-            <Text style={styles.pageIndicator}>Page {currentPage}</Text>
-          </Animated.View>
+        <TouchableOpacity onPress={() => router.push(`/book/${id}`)} style={styles.infoButton}>
+          <Ionicons name="information-circle-outline" size={24} color="#F7F4EF" />
         </TouchableOpacity>
       </View>
 
-      {/* Bottom Bar - Only show when controls are visible */}
-      {showControls && (
-        <View style={styles.bottomBar}>
-          <Text style={styles.pageNumber}>{currentPage}</Text>
-          <View style={styles.progressBarContainer}>
-            <View style={[styles.progressBar, { width: `${progress}%` }]} />
-          </View>
-          <Text style={styles.pageTotal}>{totalPages}</Text>
-        </View>
-      )}
-
-      {/* Floating Settings Button - Only show when controls are visible */}
-      {showControls && (
-        <TouchableOpacity 
-          style={styles.settingsButton}
-          onPress={handleOpenSettings}
-        >
-          <Ionicons name="settings" size={24} color="#F7F4EF" />
-        </TouchableOpacity>
-      )}
-
-      {/* Settings Modal */}
-      {showSettings && (
-        <View style={styles.modal}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Reading Settings</Text>
-              <TouchableOpacity onPress={() => setShowSettings(false)}>
-                <Ionicons name="close" size={24} color="#F7F4EF" />
-              </TouchableOpacity>
-            </View>
-
-            {/* Font Size */}
-            <View style={styles.settingSection}>
-              <Text style={styles.settingLabel}>Font Size</Text>
-              <View style={styles.fontSizeBar}>
-                <TouchableOpacity style={styles.fontButton}>
-                  <Text style={styles.fontButtonText}>A-</Text>
-                </TouchableOpacity>
-                <View style={styles.fontSlider}>
-                  <View style={styles.fontSliderTrack} />
-                </View>
-                <TouchableOpacity style={styles.fontButton}>
-                  <Text style={styles.fontButtonText}>A+</Text>
-                </TouchableOpacity>
+      <View style={styles.readerContainer}>
+        {(libraryEntry?.file_format === 'txt' || (libraryEntry?.file_format === 'epub' && isEpubText)) && (
+          <PagerView
+            ref={pagerRef}
+            style={styles.pagerView}
+            initialPage={0}
+            onPageSelected={(e) => setCurrentPage(e.nativeEvent.position)}
+          >
+            {pages.map((pageContent, index) => (
+              <View key={index} style={styles.page}>
+                <Text style={styles.pageText}>{pageContent}</Text>
+                <Text style={styles.pageNumber}>
+                  {index + 1} / {totalPages}
+                </Text>
               </View>
-            </View>
-
-            {/* Line Spacing */}
-            <View style={styles.settingSection}>
-              <Text style={styles.settingLabel}>Line Spacing</Text>
-              <View style={styles.spacingOptions}>
-                <TouchableOpacity style={styles.spacingOption}>
-                  <Ionicons name="reorder-two-outline" size={24} color="#F7F4EF" />
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.spacingOption}>
-                  <Ionicons name="reorder-three-outline" size={24} color="#F7F4EF" />
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.spacingOption, styles.spacingOptionActive]}>
-                  <Ionicons name="reorder-four-outline" size={24} color="#F7F4EF" />
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            {/* Theme */}
-            <View style={styles.settingSection}>
-              <Text style={styles.settingLabel}>Theme Change</Text>
-              <View style={styles.themeOptions}>
-                <TouchableOpacity style={[styles.themeOption, styles.themeDark, styles.themeActive]}>
-                  <Text style={styles.themeText}>Dark</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.themeOption, styles.themeSepia]}>
-                  <Text style={[styles.themeText, styles.themeTextDark]}>Sepia</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.themeOption, styles.themeLight]}>
-                  <Text style={[styles.themeText, styles.themeTextDark]}>Light</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            {/* Font Change */}
-            <View style={styles.settingSection}>
-              <Text style={styles.settingLabel}>Font Change</Text>
-              <View style={styles.fontOptions}>
-                <TouchableOpacity style={[styles.fontOption, styles.fontOptionActive]}>
-                  <Text style={styles.fontOptionText}>Serif</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.fontOption}>
-                  <Text style={[styles.fontOptionText, { fontFamily: 'sans-serif' }]}>Sans-Serif</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.fontOption}>
-                  <Text style={[styles.fontOptionText, { fontFamily: 'monospace' }]}>Mono</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            {/* Done Button */}
-            <TouchableOpacity style={styles.doneButton} onPress={() => setShowSettings(false)}>
-              <Text style={styles.doneButtonText}>Done</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
+            ))}
+          </PagerView>
+        )}
+        
+        {libraryEntry?.file_format === 'pdf' && renderPDFReader()}
+        {((libraryEntry?.file_format === 'epub' && !isEpubText) || libraryEntry?.file_format === 'mobi') && renderWebReader()}
+      </View>
     </View>
   );
 }
@@ -271,252 +506,74 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#2C3E50',
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    color: '#F7F4EF',
+    fontSize: 16,
+    marginTop: 16,
+    opacity: 0.7,
+  },
   topBar: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 20,
+    paddingHorizontal: 20,
     paddingTop: 60,
+    paddingBottom: 16,
     backgroundColor: '#2C3E50',
-  },
-  logo: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#F7F4EF',
-  },
-  topIcons: {
-    flexDirection: 'row',
-    gap: 16,
-  },
-  header: {
-    padding: 20,
-    paddingTop: 0,
     borderBottomWidth: 1,
     borderBottomColor: '#4A5568',
+  },
+  backButton: {
+    marginRight: 12,
+  },
+  bookInfo: {
+    flex: 1,
   },
   bookTitle: {
     fontSize: 16,
     fontWeight: '600',
     color: '#F7F4EF',
-    marginBottom: 4,
+    marginBottom: 2,
   },
-  chapterTitle: {
-    fontSize: 14,
-    color: '#F7F4EF',
-    opacity: 0.6,
+  bookAuthor: {
+    fontSize: 13,
+    color: '#7BA591',
   },
-  contentContainer: {
+  infoButton: {
+    marginLeft: 12,
+  },
+  readerContainer: {
     flex: 1,
   },
-  tapArea: {
+  pagerView: {
     flex: 1,
   },
-  content: {
+  page: {
     flex: 1,
-    padding: 20,
-    paddingTop:60,
-    paddingBottom:40,
-    justifyContent: 'center',
+    backgroundColor: '#2C3E50',
+    padding: 24,
+    justifyContent: 'flex-start',
   },
-  text: {
+  pageText: {
     fontSize: 18,
     lineHeight: 32,
     color: '#F7F4EF',
-    fontFamily: 'serif',
-  },
-  pageIndicator: {
-    color: '#F7F4EF',
-    opacity: 0.3,
-    fontSize: 12,
-    textAlign: 'center',
-    marginTop: 20,
-  },
-  bottomBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 20,
-    gap: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#4A5568',
+    fontFamily: 'System',
   },
   pageNumber: {
-    color: '#F7F4EF',
-    fontSize: 14,
-  },
-  progressBarContainer: {
-    flex: 1,
-    height: 4,
-    backgroundColor: '#4A5568',
-    borderRadius: 2,
-  },
-  progressBar: {
-    height: '100%',
-    backgroundColor: '#7BA591',
-    borderRadius: 2,
-  },
-  pageTotal: {
-    color: '#F7F4EF',
-    fontSize: 14,
-  },
-  settingsButton: {
     position: 'absolute',
-    bottom: 80,
-    right: 20,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#7BA591',
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
+    bottom: 16,
+    alignSelf: 'center',
+    color: '#7BA591',
+    fontSize: 12,
+    fontWeight: '600',
   },
-  modal: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.9)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalContent: {
+  webView: {
+    flex: 1,
     backgroundColor: '#2C3E50',
-    borderRadius: 16,
-    padding: 24,
-    width: '90%',
-    maxWidth: 400,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#F7F4EF',
-  },
-  settingSection: {
-    marginBottom: 24,
-  },
-  settingLabel: {
-    color: '#F7F4EF',
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 12,
-  },
-  fontSizeBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  fontButton: {
-    width: 40,
-    height: 40,
-    backgroundColor: '#4A5568',
-    borderRadius: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  fontButtonText: {
-    color: '#F7F4EF',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  fontSlider: {
-    flex: 1,
-    height: 4,
-    backgroundColor: '#4A5568',
-    borderRadius: 2,
-    justifyContent: 'center',
-  },
-  fontSliderTrack: {
-    width: '60%',
-    height: '100%',
-    backgroundColor: '#7BA591',
-    borderRadius: 2,
-  },
-  spacingOptions: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  spacingOption: {
-    flex: 1,
-    backgroundColor: '#4A5568',
-    padding: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  spacingOptionActive: {
-    backgroundColor: '#7BA591',
-  },
-  themeOptions: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  themeOption: {
-    flex: 1,
-    padding: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: 'transparent',
-  },
-  themeDark: {
-    backgroundColor: '#2C3E50',
-  },
-  themeSepia: {
-    backgroundColor: '#F4ECD8',
-  },
-  themeLight: {
-    backgroundColor: '#F7F4EF',
-  },
-  themeActive: {
-    borderColor: '#7BA591',
-  },
-  themeText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#F7F4EF',
-  },
-  themeTextDark: {
-    color: '#2C3E50',
-  },
-  fontOptions: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  fontOption: {
-    flex: 1,
-    backgroundColor: '#4A5568',
-    padding: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  fontOptionActive: {
-    backgroundColor: '#7BA591',
-  },
-  fontOptionText: {
-    color: '#F7F4EF',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  doneButton: {
-    backgroundColor: '#7BA591',
-    padding: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  doneButtonText: {
-    color: '#F7F4EF',
-    fontSize: 16,
-    fontWeight: '600',
   },
 });

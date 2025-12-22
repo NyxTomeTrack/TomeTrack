@@ -4,6 +4,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as DocumentPicker from 'expo-document-picker';
 
 const API_URL = 'http://192.168.101.22:3000/api';
 
@@ -20,6 +21,7 @@ export default function BookDetailScreen() {
   const [showReviewForm, setShowReviewForm] = useState(false);
   const [rating, setRating] = useState(0);
   const [reviewText, setReviewText] = useState('');
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     getUserId();
@@ -141,7 +143,7 @@ export default function BookDetailScreen() {
             try {
               await axios.delete(`${API_URL}/library/remove/${libraryEntry.library_id}`);
               setLibraryEntry(null);
-              Alert.alert('Success', 'Book removed from library');
+              router.back();
             } catch (error) {
               Alert.alert('Error', 'Failed to remove book');
             }
@@ -175,19 +177,7 @@ export default function BookDetailScreen() {
       });
 
       if (progressPercentage >= 100) {
-        Alert.alert(
-          'Congratulations! 🎉',
-          'You\'ve finished this book! Mark it as finished?',
-          [
-            { text: 'Not Yet', style: 'cancel' },
-            {
-              text: 'Mark as Finished',
-              onPress: async () => {
-                await handleUpdateStatus('finished');
-              }
-            }
-          ]
-        );
+        await handleUpdateStatus('finished');
       }
 
       await loadBookDetails();
@@ -208,19 +198,7 @@ export default function BookDetailScreen() {
       });
 
       if (percentage >= 100) {
-        Alert.alert(
-          'Congratulations! 🎉',
-          'Mark this book as finished?',
-          [
-            { text: 'Not Yet', style: 'cancel', onPress: () => loadBookDetails() },
-            {
-              text: 'Mark as Finished',
-              onPress: async () => {
-                await handleUpdateStatus('finished');
-              }
-            }
-          ]
-        );
+        await handleUpdateStatus('finished');
       } else {
         await loadBookDetails();
       }
@@ -247,7 +225,6 @@ export default function BookDetailScreen() {
         review_text: reviewText.trim()
       });
 
-      Alert.alert('Success', 'Review saved successfully!');
       await loadUserReview();
       setShowReviewForm(false);
     } catch (error: any) {
@@ -273,7 +250,6 @@ export default function BookDetailScreen() {
               setUserReview(null);
               setRating(0);
               setReviewText('');
-              Alert.alert('Success', 'Review deleted');
             } catch (error) {
               Alert.alert('Error', 'Failed to delete review');
             }
@@ -281,6 +257,80 @@ export default function BookDetailScreen() {
         }
       ]
     );
+  };
+
+  const handleUploadFile = async () => {
+    if (!libraryEntry) return;
+
+    try {
+      setUploading(true);
+
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['application/epub+zip', 'application/pdf', 'application/x-mobipocket-ebook', 'text/plain'],
+        copyToCacheDirectory: true,
+      });
+
+      if (result.canceled) {
+        setUploading(false);
+        return;
+      }
+
+      const file = result.assets[0];
+      const fileExtension = file.name.split('.').pop()?.toLowerCase() || '';
+      
+      const validExtensions = ['epub', 'pdf', 'mobi', 'txt', 'azw', 'azw3'];
+      if (!validExtensions.includes(fileExtension)) {
+        Alert.alert('Invalid File', 'Please upload an EPUB, PDF, MOBI, or TXT file');
+        setUploading(false);
+        return;
+      }
+
+      await axios.post(`${API_URL}/library/upload-file/${libraryEntry.library_id}`, {
+        file_path: file.uri,
+        file_format: fileExtension,
+        file_size: file.size
+      });
+
+      await loadBookDetails();
+      
+    } catch (error: any) {
+      console.error('Upload file error:', error.response?.data || error);
+      Alert.alert('Error', 'Failed to upload file');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleRemoveFile = async () => {
+    if (!libraryEntry) return;
+
+    Alert.alert(
+      'Remove File',
+      'Are you sure you want to remove this file?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await axios.delete(`${API_URL}/library/remove-file/${libraryEntry.library_id}`);
+              await loadBookDetails();
+            } catch (error) {
+              Alert.alert('Error', 'Failed to remove file');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (!bytes) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
   };
 
   const renderStarRating = (interactive: boolean = false) => {
@@ -622,6 +672,63 @@ export default function BookDetailScreen() {
               {libraryEntry.status === 'reading' ? 'Continue Reading' : 'Start Reading'}
             </Text>
           </TouchableOpacity>
+        )}
+
+        {libraryEntry && (
+          <View style={styles.fileSection}>
+            <Text style={styles.fileSectionTitle}>Ebook File</Text>
+            
+            {libraryEntry.file_path ? (
+              <View style={styles.fileDisplay}>
+                <View style={styles.fileInfo}>
+                  <View style={styles.fileIconContainer}>
+                    <Ionicons name="document-text" size={32} color="#7BA591" />
+                  </View>
+                  <View style={styles.fileDetails}>
+                    <Text style={styles.fileName}>
+                      {book.title}.{libraryEntry.file_format}
+                    </Text>
+                    <Text style={styles.fileFormat}>
+                      {libraryEntry.file_format?.toUpperCase()} 
+                      {libraryEntry.file_size && ` • ${formatFileSize(libraryEntry.file_size)}`}
+                    </Text>
+                  </View>
+                </View>
+                <View style={styles.fileActions}>
+                  <TouchableOpacity
+                    style={styles.replaceFileButton}
+                    onPress={handleUploadFile}
+                    disabled={uploading}
+                  >
+                    <Ionicons name="swap-horizontal" size={18} color="#F7F4EF" />
+                    <Text style={styles.replaceFileText}>Replace</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.removeFileButton}
+                    onPress={handleRemoveFile}
+                  >
+                    <Ionicons name="trash-outline" size={18} color="#F7F4EF" />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={styles.uploadButton}
+                onPress={handleUploadFile}
+                disabled={uploading}
+              >
+                {uploading ? (
+                  <ActivityIndicator size="small" color="#F7F4EF" />
+                ) : (
+                  <>
+                    <Ionicons name="cloud-upload-outline" size={24} color="#F7F4EF" />
+                    <Text style={styles.uploadButtonText}>Upload Ebook File</Text>
+                    <Text style={styles.uploadButtonSubtext}>EPUB, PDF, MOBI, TXT</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            )}
+          </View>
         )}
 
         {libraryEntry && (
@@ -1044,6 +1151,94 @@ const styles = StyleSheet.create({
     color: '#F7F4EF',
     fontSize: 16,
     fontWeight: '600',
+  },
+  fileSection: {
+    marginHorizontal: 20,
+    marginBottom: 24,
+    padding: 20,
+    backgroundColor: '#4A5568',
+    borderRadius: 12,
+  },
+  fileSectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#F7F4EF',
+    marginBottom: 16,
+  },
+  uploadButton: {
+    backgroundColor: '#2C3E50',
+    paddingVertical: 24,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    gap: 8,
+  },
+  uploadButtonText: {
+    color: '#F7F4EF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  uploadButtonSubtext: {
+    color: '#F7F4EF',
+    fontSize: 12,
+    opacity: 0.6,
+  },
+  fileDisplay: {
+    gap: 16,
+  },
+  fileInfo: {
+    flexDirection: 'row',
+    gap: 12,
+    alignItems: 'center',
+  },
+  fileIconContainer: {
+    width: 56,
+    height: 56,
+    backgroundColor: '#2C3E50',
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  fileDetails: {
+    flex: 1,
+  },
+  fileName: {
+    color: '#F7F4EF',
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  fileFormat: {
+    color: '#7BA591',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  fileActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  replaceFileButton: {
+    flex: 1,
+    flexDirection: 'row',
+    backgroundColor: '#7BA591',
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  replaceFileText: {
+    color: '#F7F4EF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  removeFileButton: {
+    width: 50,
+    backgroundColor: '#2C3E50',
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   reviewSection: {
     marginHorizontal: 20,

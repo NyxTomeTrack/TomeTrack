@@ -282,4 +282,90 @@ router.get('/stats/:userId', async (req, res) => {
   }
 });
 
+// Upload file for book
+router.post('/upload-file/:libraryId', async (req, res) => {
+  try {
+    const { libraryId } = req.params;
+    const { file_path, file_format, file_size } = req.body;
+
+    if (!file_path || !file_format) {
+      return res.status(400).json({
+        success: false,
+        error: 'file_path and file_format are required'
+      });
+    }
+
+    // Valid file formats
+    const validFormats = ['epub', 'pdf', 'mobi', 'txt', 'azw', 'azw3'];
+    if (!validFormats.includes(file_format.toLowerCase())) {
+      return res.status(400).json({
+        success: false,
+        error: `Invalid file format. Supported formats: ${validFormats.join(', ')}`
+      });
+    }
+
+    const result = await pool.query(
+      `UPDATE user_books 
+       SET file_path = $1, file_format = $2, file_size = $3, updated_at = NOW()
+       WHERE id = $4
+       RETURNING *`,
+      [file_path, file_format.toLowerCase(), file_size || null, libraryId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Library entry not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'File uploaded successfully',
+      library_entry: result.rows[0]
+    });
+
+  } catch (error) {
+    console.error('Upload file error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to upload file'
+    });
+  }
+});
+
+// Remove file from book
+router.delete('/remove-file/:libraryId', async (req, res) => {
+  try {
+    const { libraryId } = req.params;
+
+    const result = await pool.query(
+      `UPDATE user_books 
+       SET file_path = NULL, file_format = NULL, file_size = NULL, updated_at = NOW()
+       WHERE id = $1
+       RETURNING *`,
+      [libraryId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Library entry not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'File removed successfully'
+    });
+
+  } catch (error) {
+    console.error('Remove file error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to remove file'
+    });
+  }
+});
+
 module.exports = router;
