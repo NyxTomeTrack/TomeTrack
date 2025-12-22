@@ -1,21 +1,46 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
+import { useState, useCallback } from 'react';
+import { getUserProfile, getUserStats } from '../../services/user';
 
 export default function ProfileScreen() {
   const router = useRouter();
+  const [user, setUser] = useState<any>(null);
+  const [stats, setStats] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
-  // Mock user data
-  const user = {
-    username: '@Username',
-    displayName: 'Your Name',
-    bio: 'Bio Text goes here if you want to add it',
-    booksCount: 47,
-    reviewsCount: 23,
-    followersCount: 156,
-    followingCount: 89,
+  // Load profile data when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      loadProfileData();
+    }, [])
+  );
+
+  const loadProfileData = async () => {
+    try {
+      setLoading(true);
+      
+      console.log('LOADING PROFILE DATA...');
+      
+      const [profileData, statsData] = await Promise.all([
+        getUserProfile(),
+        getUserStats()
+      ]);
+      
+      console.log('PROFILE DATA:', profileData);
+      console.log('STATS DATA:', statsData);
+      
+      setUser(profileData);
+      setStats(statsData);
+    } catch (error) {
+      console.error('Error loading profile:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
+  // Mock activity data (will connect to real data later)
   const finishedBooks = [
     { id: 1, title: 'Title of Book', author: 'Author', reviews: 1234 },
   ];
@@ -55,13 +80,42 @@ export default function ProfileScreen() {
     </View>
   );
 
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.topBar}>
+          <TouchableOpacity onPress={() => router.push('/(tabs)/home')}>
+            <Text style={styles.logo}>TomeTrack</Text>
+          </TouchableOpacity>
+          <View style={styles.topIcons}>
+            <TouchableOpacity onPress={() => router.push('/(tabs)/profile')}>
+              <Ionicons name="person-circle" size={28} color="#7BA591" />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => router.push('/(tabs)/library')}>
+              <Ionicons name="library-outline" size={28} color="#F7F4EF" />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => router.push('/(tabs)/explore')}>
+              <Ionicons name="search-outline" size={28} color="#F7F4EF" />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => router.push('/(tabs)/settings')}>
+              <Ionicons name="settings-outline" size={28} color="#F7F4EF" />
+            </TouchableOpacity>
+          </View>
+        </View>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#7BA591" />
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       {/* Top Bar */}
       <View style={styles.topBar}>
         <TouchableOpacity onPress={() => router.push('/(tabs)/home')}>
-  <Text style={styles.logo}>TomeTrack</Text>
-</TouchableOpacity>
+          <Text style={styles.logo}>TomeTrack</Text>
+        </TouchableOpacity>
         <View style={styles.topIcons}>
           <TouchableOpacity onPress={() => router.push('/(tabs)/profile')}>
             <Ionicons name="person-circle" size={28} color="#7BA591" />
@@ -85,30 +139,30 @@ export default function ProfileScreen() {
             <Text style={styles.profilePictureText}>Profile Picture</Text>
           </View>
 
-          <Text style={styles.displayName}>{user.displayName}</Text>
-          <Text style={styles.username}>{user.username}</Text>
-          <Text style={styles.bio}>{user.bio}</Text>
+          <Text style={styles.displayName}>{user?.display_name || user?.username}</Text>
+          <Text style={styles.username}>@{user?.username}</Text>
+          <Text style={styles.bio}>{user?.bio || 'No bio yet'}</Text>
 
           {/* Stats */}
           <View style={styles.stats}>
             <View style={styles.statItem}>
               <Text style={styles.statNumber}># Books</Text>
-              <Text style={styles.statLabel}>{user.booksCount}</Text>
+              <Text style={styles.statLabel}>{stats?.books_count || 0}</Text>
             </View>
             <View style={styles.statDivider} />
             <View style={styles.statItem}>
               <Text style={styles.statNumber}># Reviews</Text>
-              <Text style={styles.statLabel}>{user.reviewsCount}</Text>
+              <Text style={styles.statLabel}>{stats?.reviews_count || 0}</Text>
             </View>
             <View style={styles.statDivider} />
             <View style={styles.statItem}>
               <Text style={styles.statNumber}># Followers</Text>
-              <Text style={styles.statLabel}>{user.followersCount}</Text>
+              <Text style={styles.statLabel}>{stats?.followers_count || 0}</Text>
             </View>
             <View style={styles.statDivider} />
             <View style={styles.statItem}>
               <Text style={styles.statNumber}># Following</Text>
-              <Text style={styles.statLabel}>{user.followingCount}</Text>
+              <Text style={styles.statLabel}>{stats?.following_count || 0}</Text>
             </View>
           </View>
 
@@ -154,6 +208,11 @@ const styles = StyleSheet.create({
   topIcons: {
     flexDirection: 'row',
     gap: 16,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   scrollView: {
     flex: 1,

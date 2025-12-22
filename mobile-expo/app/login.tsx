@@ -1,14 +1,15 @@
-import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { useState } from 'react';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import axios from 'axios';
+import { login } from '../services/auth';
 
 export default function LoginScreen() {
   const router = useRouter();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleLogin = async () => {
     if (!username.trim() || !password.trim()) {
@@ -17,18 +18,21 @@ export default function LoginScreen() {
     }
 
     setError('');
+    setIsLoading(true);
 
     try {
-      const response = await axios.post('http://192.168.101.22:3000/api/auth/login', {
-        username: username,
-        password: password
-      });
+      const { user } = await login(username.trim(), password);
+      
+      console.log('Login successful:', user);
 
-      // Login successful - go directly to home (skip onboarding)
+      // Navigate to home
       router.replace('/(tabs)/home');
       
     } catch (error: any) {
-      setError(error.response?.data?.error || 'Login failed. Please try again.');
+      console.error('Login error:', error);
+      setError(error.response?.data?.error || 'Login failed. Please check your credentials.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -63,6 +67,7 @@ export default function LoginScreen() {
               setError('');
             }}
             autoCapitalize="none"
+            editable={!isLoading}
           />
 
           <TextInput
@@ -76,6 +81,7 @@ export default function LoginScreen() {
             }}
             secureTextEntry
             autoCapitalize="none"
+            editable={!isLoading}
           />
 
           {/* Error Message */}
@@ -86,8 +92,16 @@ export default function LoginScreen() {
             </View>
           ) : null}
 
-          <TouchableOpacity style={styles.button} onPress={handleLogin}>
-            <Text style={styles.buttonText}>Log In</Text>
+          <TouchableOpacity 
+            style={[styles.button, isLoading && styles.buttonDisabled]} 
+            onPress={handleLogin}
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <ActivityIndicator color="#F7F4EF" />
+            ) : (
+              <Text style={styles.buttonText}>Log In</Text>
+            )}
           </TouchableOpacity>
         </View>
       </View>
@@ -177,6 +191,9 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
     marginTop: 8,
+  },
+  buttonDisabled: {
+    opacity: 0.6,
   },
   buttonText: {
     color: '#F7F4EF',

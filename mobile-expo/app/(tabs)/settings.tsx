@@ -1,31 +1,45 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { clearAuthData } from '../../services/auth';
 
 export default function SettingsScreen() {
   const router = useRouter();
 
-  const handleLogout = () => {
-    // TODO: Clear user session
-    alert('Logging out...');
+  const handleLogout = async () => {
+    await clearAuthData();
     router.replace('/welcome');
   };
 
-  const SettingsSection = ({ title, items }: any) => (
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>{title}</Text>
-      {items.map((item: any, index: number) => (
-        <TouchableOpacity 
-          key={index} 
-          style={styles.settingItem}
-          onPress={item.onPress}
-        >
-          <Text style={styles.settingText}>{item.label}</Text>
-          <Ionicons name="chevron-forward" size={20} color="#F7F4EF" opacity={0.5} />
-        </TouchableOpacity>
-      ))}
-    </View>
-  );
+  const settingsOptions = [
+    { 
+      title: 'Account Settings', 
+      icon: 'person-outline', 
+      items: [
+        { label: 'Email & Password', route: '/settings/email-password' },
+        { label: 'Privacy', route: '/settings/privacy' },
+        { label: 'Notifications', route: '/settings/notifications' },
+      ]
+    },
+    { 
+      title: 'App Settings', 
+      icon: 'settings-outline', 
+      items: [
+        { label: 'Reading Settings', route: '/settings/reading-settings' },
+        { label: 'File Management', route: '/settings/file-management' },
+      ]
+    },
+    { 
+      title: 'About', 
+      icon: 'information-circle-outline', 
+      items: [
+        { label: 'Terms of Service', route: '/settings/terms' },
+        { label: 'Privacy Policy', route: '/settings/privacy-policy' },
+        { label: 'Community Guidelines', route: '/settings/community-guidelines' },
+        { label: 'Help & Support', route: '/settings/help' },
+      ]
+    },
+  ];
 
   return (
     <View style={styles.container}>
@@ -51,70 +65,33 @@ export default function SettingsScreen() {
       </View>
 
       <ScrollView style={styles.scrollView}>
-        {/* Account Section */}
-        <SettingsSection
-          title="Account"
-          items={[
-            { 
-              label: '> Email & Password', 
-              onPress: () => router.push('/settings/email-password')
-            },
-            { 
-              label: '> Privacy', 
-              onPress: () => router.push('/settings/privacy')
-            },
-            { 
-              label: '> Notifications', 
-              onPress: () => router.push('/settings/notifications')
-            },
-          ]}
-        />
+        <Text style={styles.pageTitle}>Settings</Text>
 
-        {/* Reading Section */}
-        <SettingsSection
-          title="Reading"
-          items={[
-            { 
-              label: '> Default Reading Settings', 
-              onPress: () => router.push('/settings/reading-settings')
-            },
-            { 
-              label: '> File Management', 
-              onPress: () => router.push('/settings/file-management')
-            },
-          ]}
-        />
+        {settingsOptions.map((section, index) => (
+          <View key={index} style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Ionicons name={section.icon as any} size={20} color="#7BA591" />
+              <Text style={styles.sectionTitle}>{section.title}</Text>
+            </View>
 
-        {/* About Section */}
-        <SettingsSection
-          title="About"
-          items={[
-            { 
-              label: '> Terms of Service', 
-              onPress: () => router.push('/settings/terms')
-            },
-            { 
-              label: '> Privacy Policy', 
-              onPress: () => router.push('/settings/privacy-policy')
-            },
-            { 
-              label: '> Community Guidelines', 
-              onPress: () => router.push('/settings/community-guidelines')
-            },
-            { 
-              label: '> Help & Support', 
-              onPress: () => router.push('/settings/help')
-            },
-          ]}
-        />
+            {section.items.map((item, itemIndex) => (
+              <TouchableOpacity
+                key={itemIndex}
+                style={styles.optionItem}
+                onPress={() => router.push(item.route as any)}
+              >
+                <Text style={styles.optionText}>{item.label}</Text>
+                <Ionicons name="chevron-forward" size={20} color="#F7F4EF" opacity={0.5} />
+              </TouchableOpacity>
+            ))}
+          </View>
+        ))}
 
-        {/* Log Out Button */}
+        {/* Logout Button */}
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-          <Text style={styles.logoutButtonText}>Log Out</Text>
+          <Ionicons name="log-out-outline" size={20} color="#E57373" />
+          <Text style={styles.logoutText}>Log Out</Text>
         </TouchableOpacity>
-
-        {/* Version */}
-        <Text style={styles.version}>Version 1.0.0</Text>
       </ScrollView>
     </View>
   );
@@ -145,45 +122,56 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 20,
   },
+  pageTitle: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#F7F4EF',
+    marginBottom: 24,
+  },
   section: {
     marginBottom: 32,
   },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#F7F4EF',
-    marginBottom: 16,
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
   },
-  settingItem: {
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#7BA591',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  optionItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#4A5568',
-  },
-  settingText: {
-    fontSize: 16,
-    color: '#F7F4EF',
-  },
-  logoutButton: {
-    backgroundColor: '#7BA591',
+    backgroundColor: '#4A5568',
     padding: 16,
     borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 24,
-    marginBottom: 16,
+    marginBottom: 8,
   },
-  logoutButtonText: {
+  optionText: {
     color: '#F7F4EF',
     fontSize: 16,
-    fontWeight: '600',
   },
-  version: {
-    color: '#F7F4EF',
-    opacity: 0.5,
-    fontSize: 14,
-    textAlign: 'center',
-    marginBottom: 40,
+  logoutButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    padding: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E57373',
+    marginTop: 16,
+    marginBottom: 32,
+  },
+  logoutText: {
+    color: '#E57373',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
