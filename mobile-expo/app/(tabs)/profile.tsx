@@ -31,9 +31,14 @@ export default function ProfileScreen() {
       console.log('PROFILE DATA:', profileData);
       console.log('STATS DATA:', statsData);
       
+<<<<<<< HEAD
       // Extract user and stats from response objects
       setUser(profileData.user);
       setStats(statsData.stats);
+=======
+      setUser(profileData);
+      setStats(statsData);
+>>>>>>> d200ccc00fcbe9a4d6256c522c41c780b1d487cc
     } catch (error) {
       console.error('Error loading profile:', error);
     } finally {

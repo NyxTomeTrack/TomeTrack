@@ -5,7 +5,11 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+<<<<<<< HEAD
 const API_URL = 'http://192.168.0.174:3000/api';
+=======
+const API_URL = 'http://192.168.101.22:3000/api';
+>>>>>>> d200ccc00fcbe9a4d6256c522c41c780b1d487cc
 
 export default function LibraryScreen() {
   const router = useRouter();
@@ -49,6 +53,7 @@ export default function LibraryScreen() {
     
     try {
       setLoading(true);
+<<<<<<< HEAD
       
       // Get token
       const token = await AsyncStorage.getItem('@tometrack_token');
@@ -58,13 +63,19 @@ export default function LibraryScreen() {
         }
       };
       
+=======
+>>>>>>> d200ccc00fcbe9a4d6256c522c41c780b1d487cc
       let url = `${API_URL}/library/${userId}`;
       if (status && status !== 'all') {
         url += `?status=${status}`;
       }
 
       console.log('Loading library from:', url);
+<<<<<<< HEAD
       const response = await axios.get(url, config);
+=======
+      const response = await axios.get(url);
+>>>>>>> d200ccc00fcbe9a4d6256c522c41c780b1d487cc
       console.log('Library response:', response.data);
       setLibrary(response.data.library || []);
     } catch (error: any) {
@@ -83,6 +94,7 @@ export default function LibraryScreen() {
     if (!userId) return;
     
     try {
+<<<<<<< HEAD
       // Get token
       const token = await AsyncStorage.getItem('@tometrack_token');
       const config = {
@@ -93,6 +105,10 @@ export default function LibraryScreen() {
       
       console.log('Loading stats for user:', userId);
       const response = await axios.get(`${API_URL}/library/stats/${userId}`, config);
+=======
+      console.log('Loading stats for user:', userId);
+      const response = await axios.get(`${API_URL}/library/stats/${userId}`);
+>>>>>>> d200ccc00fcbe9a4d6256c522c41c780b1d487cc
       console.log('Stats response:', response.data);
       setStats(response.data.stats);
     } catch (error: any) {

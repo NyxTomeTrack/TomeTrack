@@ -9,8 +9,11 @@ router.post('/register', async (req, res) => {
   try {
     const { username, email, password, displayName } = req.body;
 
+<<<<<<< HEAD
     console.log('Registration attempt:', username, email);
 
+=======
+>>>>>>> d200ccc00fcbe9a4d6256c522c41c780b1d487cc
     // Check if user already exists
     const existingUser = await pool.query(
       'SELECT * FROM users WHERE username = $1 OR email = $2',
@@ -18,7 +21,10 @@ router.post('/register', async (req, res) => {
     );
 
     if (existingUser.rows.length > 0) {
+<<<<<<< HEAD
       console.log('User already exists');
+=======
+>>>>>>> d200ccc00fcbe9a4d6256c522c41c780b1d487cc
       return res.status(400).json({ error: 'Username or email already exists' });
     }
 
@@ -28,14 +34,21 @@ router.post('/register', async (req, res) => {
 
     // Insert new user
     const newUser = await pool.query(
+<<<<<<< HEAD
       'INSERT INTO users (username, email, password, display_name) VALUES ($1, $2, $3, $4) RETURNING *',
+=======
+      'INSERT INTO users (username, email, password_hash, display_name) VALUES ($1, $2, $3, $4) RETURNING *',
+>>>>>>> d200ccc00fcbe9a4d6256c522c41c780b1d487cc
       [username, email, passwordHash, displayName || username]
     );
 
     const user = newUser.rows[0];
 
+<<<<<<< HEAD
     console.log('User created:', user.username);
 
+=======
+>>>>>>> d200ccc00fcbe9a4d6256c522c41c780b1d487cc
     // Generate JWT token
     const token = jwt.sign(
       { userId: user.id, username: user.username },
@@ -50,6 +63,10 @@ router.post('/register', async (req, res) => {
         username: user.username,
         email: user.email,
         display_name: user.display_name,
+<<<<<<< HEAD
+=======
+        bio: user.bio,
+>>>>>>> d200ccc00fcbe9a4d6256c522c41c780b1d487cc
         created_at: user.created_at
       }
     });
@@ -82,7 +99,11 @@ router.post('/login', async (req, res) => {
     console.log('User found:', user.username);
 
     // Check password
+<<<<<<< HEAD
     const validPassword = await bcrypt.compare(password, user.password);
+=======
+    const validPassword = await bcrypt.compare(password, user.password_hash);
+>>>>>>> d200ccc00fcbe9a4d6256c522c41c780b1d487cc
     if (!validPassword) {
       console.log('Invalid password');
       return res.status(401).json({ error: 'Invalid credentials' });
@@ -105,6 +126,10 @@ router.post('/login', async (req, res) => {
         username: user.username,
         email: user.email,
         display_name: user.display_name,
+<<<<<<< HEAD
+=======
+        bio: user.bio,
+>>>>>>> d200ccc00fcbe9a4d6256c522c41c780b1d487cc
         created_at: user.created_at
       }
     });

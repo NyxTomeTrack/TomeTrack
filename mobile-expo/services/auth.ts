@@ -1,7 +1,11 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 
+<<<<<<< HEAD
 const API_URL = 'http://192.168.0.174:3000/api';
+=======
+const API_URL = 'http://192.168.101.22:3000/api';
+>>>>>>> d200ccc00fcbe9a4d6256c522c41c780b1d487cc
 
 // Storage keys
 const TOKEN_KEY = '@tometrack_token';

@@ -5,7 +5,11 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+<<<<<<< HEAD
 const API_URL = 'http://192.168.0.174:3000/api';
+=======
+const API_URL = 'http://192.168.101.22:3000/api';
+>>>>>>> d200ccc00fcbe9a4d6256c522c41c780b1d487cc
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -46,6 +50,7 @@ export default function HomeScreen() {
     try {
       setLoading(true);
 
+<<<<<<< HEAD
       // Get token from storage
       const token = await AsyncStorage.getItem('@tometrack_token');
       
@@ -65,6 +70,18 @@ export default function HomeScreen() {
 
       // Load stats
       const statsResponse = await axios.get(`${API_URL}/library/stats/${userId}`, config);
+=======
+      // Load currently reading books
+      const readingResponse = await axios.get(`${API_URL}/library/${userId}?status=reading`);
+      setCurrentlyReading(readingResponse.data.library || []);
+
+      // Load all books sorted by most recent
+      const libraryResponse = await axios.get(`${API_URL}/library/${userId}`);
+      setRecentBooks((libraryResponse.data.library || []).slice(0, 5));
+
+      // Load stats
+      const statsResponse = await axios.get(`${API_URL}/library/stats/${userId}`);
+>>>>>>> d200ccc00fcbe9a4d6256c522c41c780b1d487cc
       setStats(statsResponse.data.stats);
 
     } catch (error) {

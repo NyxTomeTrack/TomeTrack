@@ -5,7 +5,11 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+<<<<<<< HEAD
 const API_URL = 'http://192.168.0.174:3000/api';
+=======
+const API_URL = 'http://192.168.101.22:3000/api';
+>>>>>>> d200ccc00fcbe9a4d6256c522c41c780b1d487cc
 
 export default function ExploreScreen() {
   const router = useRouter();
@@ -42,6 +46,7 @@ export default function ExploreScreen() {
 
   const loadLibraryBooks = async (uid: string) => {
     try {
+<<<<<<< HEAD
       // Get token
       const token = await AsyncStorage.getItem('@tometrack_token');
       const config = {
@@ -51,6 +56,9 @@ export default function ExploreScreen() {
       };
 
       const response = await axios.get(`${API_URL}/library/${uid}`, config);
+=======
+      const response = await axios.get(`${API_URL}/library/${uid}`);
+>>>>>>> d200ccc00fcbe9a4d6256c522c41c780b1d487cc
       const libraryMap = new Map();
       response.data.library.forEach((item: any) => {
         const key = `${item.title.toLowerCase()}_${item.author.toLowerCase()}`;
